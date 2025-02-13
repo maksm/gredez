@@ -114,23 +114,48 @@ document.addEventListener('DOMContentLoaded', () => {
     new TouchNavigation(mainContainer);
   }
 
-  // Add loading state to images
+  // Add loading state and timestamp to images
   document.querySelectorAll('img').forEach(img => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'image-wrapper';
+    img.parentNode.insertBefore(wrapper, img);
+    wrapper.appendChild(img);
+    
+    const timestamp = document.createElement('div');
+    timestamp.className = 'image-timestamp';
+    wrapper.appendChild(timestamp);
+
+    // Function to update timestamp display
+    const updateTimestamp = async () => {
+      try {
+        const response = await fetch(img.src, { method: 'HEAD' });
+        const cachedTime = response.headers.get('x-cached-time');
+        if (cachedTime) {
+          const measurementTime = new Date(cachedTime);
+          timestamp.textContent = `Meritev: ${measurementTime.toLocaleString('sl-SI')}`;
+          timestamp.classList.add('cached');
+        } else {
+          timestamp.textContent = `V živo: ${new Date().toLocaleString('sl-SI')}`;
+          timestamp.classList.remove('cached');
+        }
+      } catch (error) {
+        timestamp.textContent = `Shranjeno: ${new Date().toLocaleString('sl-SI')}`;
+        timestamp.classList.add('cached');
+      }
+    };
+
     img.addEventListener('load', () => {
       img.classList.add('loaded');
+      updateTimestamp();
     });
     
     img.addEventListener('error', () => {
       img.classList.add('error');
       img.setAttribute('alt', 'Napaka pri nalaganju slike');
+      timestamp.textContent = 'Napaka pri nalaganju';
+      timestamp.classList.add('error');
     });
   });
-
-  // Add timestamp to cached content
-  const timestamp = document.createElement('div');
-  timestamp.className = 'timestamp';
-  timestamp.textContent = `Zadnja posodobitev: ${new Date().toLocaleString('sl-SI')}`;
-  mainContainer.appendChild(timestamp);
 });
 
 // Handle offline/online events

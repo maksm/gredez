@@ -14,7 +14,14 @@ workbox.routing.registerRoute(
   })
 );
 
-// Cache ARSO meteorological images with stale-while-revalidate
+// Update intervals for different image types (in milliseconds)
+const UPDATE_INTERVALS = {
+  'weatherSat_si_pda.png': 15 * 60 * 1000,    // 15 min
+  'si0_zm_pda_latest.gif': 10 * 60 * 1000,    // 10 min - radar  
+  'nwcsaf_ct_pda_latest.gif': 15 * 60 * 1000  // 15 min - clouds
+};
+
+// Cache ARSO meteorological images with timestamp tracking
 workbox.routing.registerRoute(
   /^https:\/\/meteo\.arso\.gov\.si\/uploads\/probase\/www\/(observ|forecast)/,
   new workbox.strategies.StaleWhileRevalidate({
@@ -22,11 +29,46 @@ workbox.routing.registerRoute(
     plugins: [
       new workbox.expiration.ExpirationPlugin({
         maxEntries: 50,
-        maxAgeSeconds: 24 * 60 * 60, // 24 hours
+        maxAgeSeconds: 24 * 60 * 60, // 24 hours maximum
       }),
       new workbox.cacheableResponse.CacheableResponsePlugin({
-        statuses: [0, 200], // Also cache opaque responses (CORS)
+        statuses: [0, 200],
       }),
+      {
+        // Custom plugin to handle timestamps
+        async cacheWillUpdate({ request, response, state }) {
+          if (!response) return null;
+          
+          const url = new URL(request.url);
+          const filename = url.pathname.split('/').pop();
+          const updateInterval = UPDATE_INTERVALS[filename] || 30 * 60 * 1000; // Default 30min
+          
+          // Check if we have a cached version
+          const cache = await caches.open('weather-images-cache');
+          const cachedResponse = await cache.match(request);
+          
+          if (cachedResponse) {
+            const cachedDate = new Date(cachedResponse.headers.get('x-cached-time') || 0);
+            const now = new Date();
+            
+            // Only update if enough time has passed
+            if ((now - cachedDate) < updateInterval) {
+              return cachedResponse;
+            }
+          }
+          
+          // Clone response and add timestamp
+          const newResponse = response.clone();
+          const headers = new Headers(newResponse.headers);
+          headers.set('x-cached-time', new Date().toISOString());
+          
+          return new Response(await newResponse.blob(), {
+            status: newResponse.status,
+            statusText: newResponse.statusText,
+            headers: headers
+          });
+        }
+      }
     ],
   })
 );

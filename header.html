@@ -22,7 +22,7 @@
                 </li>
             </ul>
             <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
-                <span>🌙</span>
+                <span class="theme-icon"></span>
             </button>
         </div>
     </nav>
@@ -45,20 +45,32 @@
             transform: scale(1.1);
         }
 
-        [data-theme="dark"] .theme-toggle span::before {
-            content: "☀️";
+        .theme-icon {
+            font-size: 1.25rem;
         }
-        .theme-toggle span::before {
+        
+        /* Show moon icon in light mode (to switch to dark) */
+        .theme-icon::before {
             content: "🌙";
         }
-        .theme-toggle span {
-            font-size: 0;
+        
+        /* Show sun icon in dark mode (to switch to light) */
+        [data-theme="dark"] .theme-icon::before {
+            content: "☀️";
         }
     </style>
 
-    <script>
-        // Highlight current page in navigation
-        document.addEventListener('DOMContentLoaded', () => {
+<script>
+        // Clean up any existing event listeners
+        const existingScript = document.querySelector('script[data-nav-script]');
+        if (existingScript) {
+            existingScript.remove();
+        }
+
+        // Create and add new script with nav highlighting
+        const script = document.createElement('script');
+        script.setAttribute('data-nav-script', '');
+        script.textContent = `
             const currentPage = window.location.pathname.split('/').pop() || 'index.html';
             const navLinks = document.querySelectorAll('.nav-link');
             
@@ -68,7 +80,8 @@
                     link.setAttribute('aria-current', 'page');
                 }
             });
-        });
+        `;
+        document.head.appendChild(script);
     </script>
 
     <style>

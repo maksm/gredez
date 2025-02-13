@@ -106,41 +106,103 @@ const loadHeader = async () => {
 };
 
 // Theme Management
-const initializeTheme = () => {
-  // Check system preference
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  // Check stored preference
-  const storedTheme = localStorage.getItem('theme');
-  // Set theme
-  document.documentElement.dataset.theme = storedTheme || (prefersDark ? 'dark' : 'light');
-  updateThemeToggle();
-};
-
-const updateThemeToggle = () => {
-  const toggle = document.getElementById('theme-toggle');
-  if (toggle) {
-    const span = toggle.querySelector('span');
-    span.textContent = document.documentElement.dataset.theme === 'dark' ? '☀️' : '🌙';
+class ThemeManager {
+  constructor() {
+    this.isToggling = false;
+    this.toggleTimeout = null;
+    this.mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    
+    // Initialize theme immediately
+    this.initializeTheme();
+    
+    // Listen for system theme changes
+    this.mediaQuery.addEventListener('change', (e) => this.handleSystemThemeChange(e));
+    
+    // Handle visibility changes
+    document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
   }
-};
 
-const toggleTheme = () => {
-  const newTheme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-  document.documentElement.dataset.theme = newTheme;
-  localStorage.setItem('theme', newTheme);
-  updateThemeToggle();
-};
+  initializeTheme() {
+    try {
+      const storedTheme = localStorage.getItem('theme');
+      const systemTheme = this.mediaQuery.matches ? 'dark' : 'light';
+      this.setTheme(storedTheme || systemTheme);
+    } catch (error) {
+      console.error('Error initializing theme:', error);
+      // Fallback to light theme if localStorage fails
+      this.setTheme('light');
+    }
+  }
 
-// Initialize
-document.addEventListener('DOMContentLoaded', () => {
-  // Initialize theme immediately
-  initializeTheme();
-  
-  loadHeader().then(() => {
-    // Add theme toggle listener after header loads
+  setTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem('theme', theme);
+    } catch (error) {
+      console.error('Error saving theme preference:', error);
+    }
+  }
+
+  toggleTheme = () => {
+    // Prevent rapid toggling
+    if (this.isToggling) return;
+    
+    this.isToggling = true;
+    clearTimeout(this.toggleTimeout);
+    
+    const currentTheme = document.documentElement.dataset.theme;
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    
+    this.setTheme(newTheme);
+    
+    // Reset toggle state after delay
+    this.toggleTimeout = setTimeout(() => {
+      this.isToggling = false;
+    }, 300); // Match CSS transition duration
+  }
+
+  handleSystemThemeChange(event) {
+    // Only update if user hasn't set a preference
+    if (!localStorage.getItem('theme')) {
+      this.setTheme(event.matches ? 'dark' : 'light');
+    }
+  }
+
+  handleVisibilityChange() {
+    if (document.visibilityState === 'visible') {
+      this.initializeTheme(); // Re-sync theme when tab becomes visible
+    }
+  }
+
+  attachToggleListener() {
     const themeToggle = document.getElementById('theme-toggle');
     if (themeToggle) {
-      themeToggle.addEventListener('click', toggleTheme);
+      themeToggle.removeEventListener('click', this.toggleTheme); // Clean up any existing listener
+      themeToggle.addEventListener('click', this.toggleTheme);
+    }
+  }
+}
+
+// Initialize
+let themeManager;
+document.addEventListener('DOMContentLoaded', () => {
+  themeManager = new ThemeManager();
+  
+  // Load header and ensure theme toggle works
+  loadHeader().then(() => {
+    themeManager.attachToggleListener();
+    
+    // Watch for dynamic header changes
+    const headerObserver = new MutationObserver(() => {
+      themeManager.attachToggleListener();
+    });
+    
+    const header = document.getElementById('header');
+    if (header) {
+      headerObserver.observe(header, { 
+        childList: true,
+        subtree: true 
+      });
     }
   });
   
@@ -193,17 +255,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// Theme persistence across page loads
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    // Re-apply theme when returning to tab
-    const storedTheme = localStorage.getItem('theme');
-    if (storedTheme) {
-      document.documentElement.dataset.theme = storedTheme;
-      updateThemeToggle();
-    }
-  }
-});
 
 // Handle offline/online events
 window.addEventListener('online', () => {

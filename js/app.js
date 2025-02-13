@@ -105,9 +105,44 @@ const loadHeader = async () => {
   }
 };
 
+// Theme Management
+const initializeTheme = () => {
+  // Check system preference
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  // Check stored preference
+  const storedTheme = localStorage.getItem('theme');
+  // Set theme
+  document.documentElement.dataset.theme = storedTheme || (prefersDark ? 'dark' : 'light');
+  updateThemeToggle();
+};
+
+const updateThemeToggle = () => {
+  const toggle = document.getElementById('theme-toggle');
+  if (toggle) {
+    const span = toggle.querySelector('span');
+    span.textContent = document.documentElement.dataset.theme === 'dark' ? '☀️' : '🌙';
+  }
+};
+
+const toggleTheme = () => {
+  const newTheme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = newTheme;
+  localStorage.setItem('theme', newTheme);
+  updateThemeToggle();
+};
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-  loadHeader();
+  // Initialize theme immediately
+  initializeTheme();
+  
+  loadHeader().then(() => {
+    // Add theme toggle listener after header loads
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+      themeToggle.addEventListener('click', toggleTheme);
+    }
+  });
   
   const mainContainer = document.getElementById('main_container');
   if (mainContainer) {
@@ -156,6 +191,18 @@ document.addEventListener('DOMContentLoaded', () => {
       timestamp.classList.add('error');
     });
   });
+});
+
+// Theme persistence across page loads
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    // Re-apply theme when returning to tab
+    const storedTheme = localStorage.getItem('theme');
+    if (storedTheme) {
+      document.documentElement.dataset.theme = storedTheme;
+      updateThemeToggle();
+    }
+  }
 });
 
 // Handle offline/online events

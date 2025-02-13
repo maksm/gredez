@@ -22,6 +22,8 @@
   --error-color-rgb: 220, 53, 69;
   --offline-color: #6c757d;
   --offline-color-rgb: 108, 117, 125;
+  --success-color: #198754;
+  --success-color-rgb: 25, 135, 84;
   
   /* Theme colors - Light (default) */
   --background-color: #f8f9fa;
@@ -52,31 +54,113 @@ body {
   line-height: 1.5;
   color: var(--text-color);
   background-color: var(--background-color);
+  padding-top: calc(var(--header-height) + 2rem);
+}
+
+/* Connectivity Status */
+#connectivity-status {
+  position: fixed;
+  top: var(--header-height);
+  left: 0;
+  right: 0;
+  padding: 0.75rem;
+  text-align: center;
+  font-weight: 500;
+  font-size: 0.875rem;
+  z-index: 1025;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  transform: translateY(-100%);
+  opacity: 0;
+}
+
+#connectivity-status.offline {
+  background: linear-gradient(180deg,
+    rgba(var(--offline-color-rgb), 0.95) 0%,
+    rgba(var(--offline-color-rgb), 0.9) 100%);
+  color: white;
+  transform: translateY(0);
+  opacity: 1;
+}
+
+#connectivity-status.online {
+  background: linear-gradient(180deg,
+    rgba(var(--success-color-rgb), 0.95) 0%,
+    rgba(var(--success-color-rgb), 0.9) 100%);
+  color: white;
+  transform: translateY(0);
+  opacity: 1;
+  animation: fadeOut 3s forwards;
+}
+
+@keyframes fadeOut {
+  0%, 66% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-100%); }
+}
+
+/* Update Banner */
+.update-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(0deg,
+    rgba(var(--primary-color-rgb), 0.95) 0%,
+    rgba(var(--primary-color-rgb), 0.9) 100%);
+  padding: 1rem;
+  color: white;
+  z-index: 1030;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.update-message {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  max-width: 768px;
+  margin: 0 auto;
+}
+
+.update-button {
+  background: white;
+  color: var(--primary-color);
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.update-button:hover {
+  opacity: 0.9;
 }
 
 /* Status Indicators */
 body.offline {
-  background-color: var(--background-color);
-  position: relative;
+  filter: grayscale(0.2);
 }
 
-body.offline::before {
-  content: "⚠️ Brez povezave - prikaz shranjenih podatkov";
-  display: block;
-  text-align: center;
-  padding: 0.75rem;
-  background: linear-gradient(180deg,
-    var(--offline-color) 0%,
-    rgba(var(--offline-color-rgb), 0.95) 100%);
-  color: white;
-  font-weight: 500;
-  position: sticky;
-  top: 0;
-  z-index: 1030;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+body.offline img {
+  opacity: 0.8;
 }
 
+body.offline.has-cache::before {
+  content: "📡 Brez povezave - prikaz shranjenih podatkov";
+}
+
+body.offline:not(.has-cache)::before {
+  content: "❌ Brez povezave - ni shranjenih podatkov";
+}
+
+/* Rest of existing styles... */
 .pull-indicator {
   position: fixed;
   top: 0;
@@ -153,6 +237,11 @@ img.error::before {
   }
 }
 
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* Layout & Components */
 .container {
   max-width: 100%;
@@ -177,6 +266,7 @@ img.error::before {
   padding: 0.5rem;
 }
 
+/* Rest of your existing styles... */
 /* Navigation */
 .btn-group {
   display: flex;
@@ -215,8 +305,10 @@ header.bg-light {
   background-color: var(--header-bg) !important;
   border-bottom: 1px solid var(--border-color);
   box-shadow: 0 1px 2px var(--header-shadow);
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 1020;
   height: var(--header-height);
   display: flex;
@@ -241,17 +333,6 @@ header.bg-light {
   height: 2px;
   background-color: var(--primary-color);
   border-radius: 1px;
-}
-
-
-/* Timestamp */
-.timestamp {
-  text-align: center;
-  padding: 1rem;
-  color: var(--offline-color);
-  font-size: 0.875rem;
-  margin-top: 2rem;
-  border-top: 1px solid #dee2e6;
 }
 
 /* Image Container */

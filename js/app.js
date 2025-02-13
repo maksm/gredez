@@ -8,27 +8,120 @@ const pages = [
   'gefs.html'
 ];
 
-// Service Worker Registration
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/gredez/sw.js', { scope: '/gredez/' })
-      .then(registration => {
-        // Check for updates
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // New content is available, show refresh button or auto-refresh
-              if (confirm('Nova verzija aplikacije je na voljo. Posodobi zdaj?')) {
-                newWorker.postMessage('SKIP_WAITING');
-                window.location.reload();
-              }
-            }
-          });
-        });
-      })
-      .catch(error => console.error('Service Worker registration failed:', error));
-  });
+// Service Worker and Data Management
+class ServiceWorkerManager {
+  constructor() {
+    this.registration = null;
+    this.initialized = false;
+    this.offlineMode = !navigator.onLine;
+    this.ensembleState = new Map();
+    
+    if ('serviceWorker' in navigator) {
+      this.initialize();
+    }
+  }
+
+  async initialize() {
+    try {
+      this.registration = await navigator.serviceWorker.register('/gredez/sw.js', { 
+        scope: '/gredez/' 
+      });
+      
+      this.setupEventListeners();
+      this.checkConnectivity();
+      this.initialized = true;
+    } catch (error) {
+      console.error('Service Worker registration failed:', error);
+    }
+  }
+
+  setupEventListeners() {
+    // Update handling
+    this.registration.addEventListener('updatefound', () => {
+      const newWorker = this.registration.installing;
+      newWorker.addEventListener('statechange', () => {
+        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+          this.showUpdatePrompt(newWorker);
+        }
+      });
+    });
+
+    // Connectivity changes
+    window.addEventListener('online', () => this.handleConnectivityChange(true));
+    window.addEventListener('offline', () => this.handleConnectivityChange(false));
+  }
+
+  showUpdatePrompt(newWorker) {
+    const updateBanner = document.createElement('div');
+    updateBanner.className = 'update-banner';
+    updateBanner.innerHTML = `
+      <div class="update-message">
+        Nova verzija aplikacije je na voljo.
+        <button class="update-button">Posodobi zdaj</button>
+      </div>
+    `;
+    
+    document.body.appendChild(updateBanner);
+    
+    updateBanner.querySelector('.update-button').addEventListener('click', () => {
+      newWorker.postMessage('SKIP_WAITING');
+      window.location.reload();
+    });
+  }
+
+  handleConnectivityChange(isOnline) {
+    this.offlineMode = !isOnline;
+    document.body.classList.toggle('offline', !isOnline);
+    
+    const statusBanner = document.getElementById('connectivity-status') || 
+                        document.createElement('div');
+    statusBanner.id = 'connectivity-status';
+    statusBanner.className = isOnline ? 'online' : 'offline';
+    statusBanner.textContent = isOnline ? 
+      'Povezava vzpostavljena - posodabljam podatke...' : 
+      'Brez povezave - prikazujem shranjene podatke';
+    
+    if (!statusBanner.parentNode) {
+      document.body.insertBefore(statusBanner, document.body.firstChild);
+    }
+    
+    if (isOnline) {
+      this.refreshData();
+    }
+  }
+
+  async checkConnectivity() {
+    try {
+      const cache = await caches.open('weather-images-cache');
+      const keys = await cache.keys();
+      const hasCache = keys.length > 0;
+      
+      document.body.classList.toggle('has-cache', hasCache);
+    } catch (error) {
+      console.error('Cache check failed:', error);
+    }
+  }
+
+  async refreshData() {
+    const currentPage = window.location.pathname.split('/').pop();
+    if (currentPage === 'gefs.html' || currentPage === 'epsgram.html') {
+      await this.refreshEnsembleData(currentPage);
+    } else {
+      window.location.reload();
+    }
+  }
+
+  async refreshEnsembleData(page) {
+    try {
+      const cache = await caches.open('gredez-ensemble-v1');
+      await cache.keys().then(keys => 
+        Promise.all(keys.map(key => cache.match(key)))
+      );
+      window.location.reload();
+    } catch (error) {
+      console.error('Ensemble refresh failed:', error);
+    }
+  }
 }
 
 // Touch Navigation Setup
@@ -256,12 +349,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-// Handle offline/online events
-window.addEventListener('online', () => {
-  document.body.classList.remove('offline');
-  window.location.reload();
-});
-
-window.addEventListener('offline', () => {
-  document.body.classList.add('offline');
+// Initialize Service Worker Manager
+let swManager;
+window.addEventListener('load', () => {
+  swManager = new ServiceWorkerManager();
 });

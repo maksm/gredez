@@ -1,7 +1,9 @@
 importScripts('https://storage.googleapis.com/workbox-cdn/releases/7.0.0/workbox-sw.js');
 
-const VERSION = 'v1';
+const VERSION = 'v2';
+const ENSEMBLE_VERSION = '1';
 const CACHE_NAME = `gredez-${VERSION}`;
+const ENSEMBLE_CACHE = `gredez-ensemble-${ENSEMBLE_VERSION}`;
 
 // Use the latest workbox strategies
 workbox.setConfig({ debug: false });
@@ -14,11 +16,32 @@ workbox.routing.registerRoute(
   })
 );
 
-// Update intervals for different image types (in milliseconds)
-const UPDATE_INTERVALS = {
-  'weatherSat_si_pda.png': 15 * 60 * 1000,    // 15 min
-  'si0_zm_pda_latest.gif': 10 * 60 * 1000,    // 10 min - radar  
-  'nwcsaf_ct_pda_latest.gif': 15 * 60 * 1000  // 15 min - clouds
+// Update intervals and coherence requirements
+const DATA_CONFIG = {
+  // Direct observations
+  'weatherSat_si_pda.png': { 
+    interval: 15 * 60 * 1000,    // 15 min
+    type: 'observation'
+  },
+  'si0_zm_pda_latest.gif': {
+    interval: 10 * 60 * 1000,    // 10 min - radar
+    type: 'observation'
+  },
+  'nwcsaf_ct_pda_latest.gif': {
+    interval: 15 * 60 * 1000,    // 15 min - clouds
+    type: 'observation'
+  },
+  // Model outputs requiring coherence
+  'gefs': {
+    interval: 60 * 60 * 1000,    // 1 hour
+    type: 'ensemble',
+    members: 31
+  },
+  'epsgram': {
+    interval: 60 * 60 * 1000,    // 1 hour
+    type: 'probability',
+    dependencies: ['gefs']
+  }
 };
 
 // Cache ARSO meteorological images with timestamp tracking
@@ -41,9 +64,51 @@ workbox.routing.registerRoute(
           
           const url = new URL(request.url);
           const filename = url.pathname.split('/').pop();
-          const updateInterval = UPDATE_INTERVALS[filename] || 30 * 60 * 1000; // Default 30min
+          const pathSegments = url.pathname.split('/');
+          const dataType = pathSegments.includes('gefs') ? 'gefs' : 
+                          pathSegments.includes('epsgram') ? 'epsgram' : filename;
           
-          // Check if we have a cached version
+          const config = DATA_CONFIG[dataType] || {
+            interval: 30 * 60 * 1000, // Default 30min
+            type: 'observation'
+          };
+          
+          // Handle ensemble/probability data types
+          if (config.type === 'ensemble' || config.type === 'probability') {
+            const cache = await caches.open(ENSEMBLE_CACHE);
+            const cachedResponse = await cache.match(request);
+            
+            if (cachedResponse) {
+              const metadata = JSON.parse(cachedResponse.headers.get('x-ensemble-metadata') || '{}');
+              const now = new Date();
+              
+              // Check ensemble coherence
+              if (metadata.lastUpdate && 
+                  (now - new Date(metadata.lastUpdate)) < config.interval &&
+                  metadata.isCoherent) {
+                return cachedResponse;
+              }
+            }
+            
+            // Prepare ensemble metadata
+            const newResponse = response.clone();
+            const headers = new Headers(newResponse.headers);
+            headers.set('x-ensemble-metadata', JSON.stringify({
+              lastUpdate: new Date().toISOString(),
+              isCoherent: true,
+              type: config.type,
+              members: config.members,
+              dependencies: config.dependencies || []
+            }));
+            
+            return new Response(await newResponse.blob(), {
+              status: newResponse.status,
+              statusText: newResponse.statusText,
+              headers: headers
+            });
+          }
+          
+          // Handle regular observation data
           const cache = await caches.open('weather-images-cache');
           const cachedResponse = await cache.match(request);
           
@@ -52,7 +117,7 @@ workbox.routing.registerRoute(
             const now = new Date();
             
             // Only update if enough time has passed
-            if ((now - cachedDate) < updateInterval) {
+            if ((now - new Date(cachedDate)) < config.interval) {
               return cachedResponse;
             }
           }

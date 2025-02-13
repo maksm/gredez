@@ -1,125 +1,98 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="refresh" content="300" />
-
-    <title>GreDež - vreme Slovenija</title>
-
-    <link rel="canonical" href="https://maksm.github.io/gredez/" />
-    <link rel="manifest" href="manifest.webmanifest" />
-
-    <link
-      href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css"
-      rel="stylesheet"
-      integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC"
-      crossorigin="anonymous"
-    />
-    <script
-      src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"
-      integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM"
-      crossorigin="anonymous"
-    ></script>
-
-    <script src="https://hammerjs.github.io/dist/hammer.js"></script>
-
-    <script
-      src="https://code.jquery.com/jquery-3.3.1.js"
-      integrity="sha256-2Kok7MbOyxpgUVvAk/HJ2jigOSYS2auK4Pfzbm7uH60="
-      crossorigin="anonymous"
-    ></script>
-
-    <link rel="stylesheet" href="css/styles.css" />
-
-    <script>
-      $(function () {
-        $("#header").load("header.html");
-      });
-    </script>
-  </head>
-
-  <body>
+<html lang="sl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0d6efd">
+    <meta name="description" content="Meteorološki podatki za Ljubljano iz različnih virov">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    
+    <title>GreDež - Vreme Slovenija</title>
+    
+    <link rel="canonical" href="https://maksm.github.io/gredez/">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" type="image/png" href="icon.png">
+    <link rel="apple-touch-icon" href="icon.png">
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" 
+          rel="stylesheet" 
+          crossorigin="anonymous">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
     <div id="header"></div>
+    
+    <div class="pull-indicator">Potegni navzdol za osvežitev</div>
 
     <div class="container" id="main_container">
-      <div class="row mt-3">
-        <div class="col-11">
-          <h3>Trenutno stanje</h3>
+        <div class="row mt-3">
+            <div class="col-11">
+                <h3>Trenutno stanje</h3>
+            </div>
+            <div class="col-1 text-end">
+                <a href="https://meteo.arso.gov.si/pda/" 
+                   target="_blank" 
+                   rel="noopener">Vir</a>
+            </div>
         </div>
-        <div class="col-1 text-end">
-          <a href="https://meteo.arso.gov.si/pda/" target="_blank">Vir</a>
-        </div>
-      </div>
 
-      <div class="row mt-3">
-        <div class="col">
-          <img
-            style="width: 100%;"
-            class="img-responsive"
-            src="https://meteo.arso.gov.si/uploads/probase/www/observ/surface/graphic/weatherSat_si_pda.png"
-            alt="Trenutno stanje"
-          />
+        <div class="row mt-3">
+            <div class="col">
+                <img style="width: 100%;" 
+                     class="img-responsive" 
+                     src="https://meteo.arso.gov.si/uploads/probase/www/observ/surface/graphic/weatherSat_si_pda.png"
+                     alt="Trenutno stanje"
+                     loading="lazy">
+            </div>
         </div>
-      </div>
-      <div class="row mt-3">
-        <div class="col">
-          <img
-            style="width: 100%;"
-            class="img-responsive"
-            src="https://meteo.arso.gov.si/uploads/probase/www/observ/radar/si0_zm_pda_latest.gif"
-            alt="Padavine zadnje"
-          />
+        
+        <div class="row mt-3">
+            <div class="col">
+                <img style="width: 100%;" 
+                     class="img-responsive" 
+                     src="https://meteo.arso.gov.si/uploads/probase/www/observ/radar/si0_zm_pda_latest.gif"
+                     alt="Padavine zadnje"
+                     loading="lazy">
+            </div>
         </div>
-      </div>
-      <div class="row mt-3">
-        <div class="col">
-          <img
-            style="width: 100%;"
-            class="img-responsive"
-            src="https://meteo.arso.gov.si/uploads/probase/www/observ/satellite/nwcsaf_ct_pda_latest.gif"
-            alt="Oblacnost zadnje"
-          />
+        
+        <div class="row mt-3">
+            <div class="col">
+                <img style="width: 100%;" 
+                     class="img-responsive" 
+                     src="https://meteo.arso.gov.si/uploads/probase/www/observ/satellite/nwcsaf_ct_pda_latest.gif"
+                     alt="Oblacnost zadnje"
+                     loading="lazy">
+            </div>
         </div>
-      </div>
 
-      <div class="row mt-3">
-        <div class="col">
-          <div class="btn-group d-flex">
-            <a
-              href="https://meteo.arso.gov.si/pda/fproduct/"
-              target="_blank"
-              class="btn btn-outline-primary"
-              >Napoved tekst</a
-            >
-            <a
-              href="https://meteo.arso.gov.si/uploads/probase/www/observ/surface/text/sl/observationAms_LJUBL-ANA_BEZIGRAD_history.html"
-              class="btn btn-outline-primary"
-              target="_blank"
-              >Podatki Ljubljana</a
-            >
-            <a
-              href="https://meteo.arso.gov.si/met/sl/service/"
-              target="_blank"
-              class="btn btn-outline-primary"
-              >Podatki vsi</a
-            >
-            <a
-              href="https://www.arso.gov.si/vode/podatki/stanje_voda_samodejne.html"
-              class="btn btn-outline-primary"
-              target="_blank"
-              >Stanje vode</a
-            >
-          </div>
+        <div class="row mt-3">
+            <div class="col">
+                <div class="btn-group d-flex">
+                    <a href="https://meteo.arso.gov.si/pda/fproduct/" 
+                       target="_blank" 
+                       rel="noopener"
+                       class="btn btn-outline-primary">Napoved tekst</a>
+                    <a href="https://meteo.arso.gov.si/uploads/probase/www/observ/surface/text/sl/observationAms_LJUBL-ANA_BEZIGRAD_history.html"
+                       target="_blank" 
+                       rel="noopener"
+                       class="btn btn-outline-primary">Podatki Ljubljana</a>
+                    <a href="https://meteo.arso.gov.si/met/sl/service/" 
+                       target="_blank" 
+                       rel="noopener"
+                       class="btn btn-outline-primary">Podatki vsi</a>
+                    <a href="https://www.arso.gov.si/vode/podatki/stanje_voda_samodejne.html"
+                       target="_blank" 
+                       rel="noopener"
+                       class="btn btn-outline-primary">Stanje vode</a>
+                </div>
+            </div>
         </div>
-      </div>
     </div>
 
-    <script>
-      if (navigator.serviceWorker) {
-        navigator.serviceWorker.register("sw.js", { scope: "/gredez/" });
-      }
-    </script>
-    <script src="js/app.js"></script>
-  </body>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" 
+            crossorigin="anonymous"></script>
+    <script src="js/app.js" type="module"></script>
+</body>
 </html>

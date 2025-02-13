@@ -1,10 +1,199 @@
+/* Modern CSS Reset */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* Custom Properties */
+:root {
+  --primary-color: #0d6efd;
+  --error-color: #dc3545;
+  --offline-color: #6c757d;
+  --background-color: #f8f9fa;
+  --text-color: #212529;
+}
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.5;
+  color: var(--text-color);
+  background-color: var(--background-color);
+}
+
+/* Offline Styles */
+body.offline {
+  background-color: var(--background-color);
+  position: relative;
+}
+
+body.offline::before {
+  content: "⚠️ Brez povezave - prikaz shranjenih podatkov";
+  display: block;
+  text-align: center;
+  padding: 0.5rem;
+  background-color: var(--offline-color);
+  color: white;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+/* Image Loading States */
+img {
+  opacity: 0.6;
+  transition: opacity 0.3s ease;
+  min-height: 200px;
+  background: 
+    linear-gradient(110deg, #ececec 8%, #f5f5f5 18%, #ececec 33%);
+  background-size: 200% 100%;
+  animation: 1.5s shine linear infinite;
+}
+
+img.loaded {
+  opacity: 1;
+  min-height: 0;
+  background: none;
+  animation: none;
+}
+
+img.error {
+  opacity: 0.5;
+  min-height: 200px;
+  background: #f8d7da;
+  position: relative;
+}
+
+img.error::before {
+  content: "⚠️";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 2rem;
+}
+
+@keyframes shine {
+  to {
+    background-position-x: -200%;
+  }
+}
+
+/* Layout & Components */
 .container {
-  max-width: 800px;
+  max-width: 100%;
+  padding: 1rem;
+  margin: 0 auto;
 }
-.navbar {
-  background-color: #639045 !important;
+
+@media (min-width: 768px) {
+  .container {
+    max-width: 768px;
+  }
 }
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  margin: -0.5rem;
+}
+
+.col {
+  flex: 1;
+  padding: 0.5rem;
+}
+
+/* Navigation */
+.btn-group {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn {
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  flex: 1;
+  text-align: center;
+  min-width: min-content;
+}
+
 .btn-outline-primary {
-  color: #639045 !important;
-  border-color: #639045 !important;
+  color: var(--primary-color);
+  border: 1px solid var(--primary-color);
+}
+
+.btn-outline-primary:hover {
+  color: white;
+  background-color: var(--primary-color);
+}
+
+/* Pull to Refresh Indicator */
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.pull-indicator {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 0 0 0.5rem 0.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: none;
+  align-items: center;
+  gap: 0.5rem;
+  z-index: 1000;
+}
+
+.pull-indicator.visible {
+  display: flex;
+}
+
+.pull-indicator::before {
+  content: "↻";
+  display: inline-block;
+  animation: rotate 1s linear infinite;
+}
+
+/* Timestamp */
+.timestamp {
+  text-align: center;
+  padding: 1rem;
+  color: var(--offline-color);
+  font-size: 0.875rem;
+  margin-top: 2rem;
+  border-top: 1px solid #dee2e6;
+}
+
+/* Image Container */
+.img-responsive {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Headers */
+h3 {
+  color: var(--text-color);
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+/* Links */
+a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
 }

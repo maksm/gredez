@@ -1,35 +1,76 @@
-<nav class="navbar navbar-expand-sm navbar-dark bg-dark">
-  <div class="container-fluid">
-    <a class="navbar-brand" href="index.html">Domov</a>
-    <button
-      class="navbar-toggler"
-      type="button"
-      data-bs-toggle="collapse"
-      data-bs-target="#navbarSupportedContent"
-      aria-controls="navbarSupportedContent"
-      aria-expanded="false"
-      aria-label="Toggle navigation"
-    >
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="navbarSupportedContent">
-      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        <li class="nav-item">
-          <a class="nav-link" href="radar.html">Radar</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="aladin.html">ALADIN</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="epsgram.html">Epsgram</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="blitz.html">Strele</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="gefs.html">GEFS</a>
-        </li>
-      </ul>
-    </div>
-  </div>
-</nav>
+<header class="bg-light border-bottom">
+    <nav class="navbar navbar-expand p-0">
+        <div class="container">
+            <ul class="navbar-nav mx-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="index.html">Trenutno</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="radar.html">Radar</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="aladin.html">Aladin</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="epsgram.html">EPSgram</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="blitz.html">Blitz</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="gefs.html">GEFS</a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <script>
+        // Highlight current page in navigation
+        document.addEventListener('DOMContentLoaded', () => {
+            const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+            const navLinks = document.querySelectorAll('.nav-link');
+            
+            navLinks.forEach(link => {
+                if (link.getAttribute('href') === currentPage) {
+                    link.classList.add('active');
+                    link.setAttribute('aria-current', 'page');
+                }
+            });
+        });
+    </script>
+
+    <style>
+        .nav-link {
+            color: var(--text-color);
+            padding: 0.5rem 1rem;
+            transition: color 0.2s ease;
+        }
+        
+        .nav-link:hover {
+            color: var(--primary-color);
+        }
+        
+        .nav-link.active {
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        @media (max-width: 576px) {
+            .navbar-nav {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                width: 100%;
+            }
+            
+            .nav-item {
+                flex: 0 0 auto;
+            }
+            
+            .nav-link {
+                white-space: nowrap;
+                padding: 0.5rem;
+            }
+        }
+    </style>
+</header>

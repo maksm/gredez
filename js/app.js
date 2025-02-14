@@ -10,7 +10,15 @@ const pages = [
 
 // Import services
 import { networkService } from './services/network.js';
-import { notificationService } from './services/notifications.js';
+
+// Debounce utility
+const debounce = (fn, delay) => {
+  let timeoutId;
+  return (...args) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn(...args), delay);
+  };
+};
 
 // Service Worker and Data Management
 class ServiceWorkerManager {
@@ -35,9 +43,6 @@ class ServiceWorkerManager {
 
   async initialize() {
     try {
-      // Request notification permission early
-      await notificationService.requestPermission();
-      
       this.registration = await navigator.serviceWorker.register('/gredez/sw.js', { 
         scope: '/gredez/' 
       });
@@ -68,16 +73,6 @@ class ServiceWorkerManager {
   }
 
   setupEventListeners() {
-    // Update handling
-    this.registration.addEventListener('updatefound', () => {
-      const newWorker = this.registration.installing;
-      newWorker.addEventListener('statechange', () => {
-        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-          notificationService.showUpdateNotification();
-        }
-      });
-    });
-
     // Use network service for connectivity changes
     networkService.addListener((isOnline) => {
       this.handleConnectivityChange(isOnline);
@@ -115,15 +110,26 @@ class ServiceWorkerManager {
   }
 
   handleConnectivityChange(isOnline) {
+    // Prevent refresh if the online status hasn't actually changed
+    if (this.offlineMode === !isOnline) {
+      return;
+    }
+    
     this.offlineMode = !isOnline;
     document.body.classList.toggle('offline', !isOnline);
     
-    if (!isOnline) {
-      notificationService.showOfflineModeNotification();
-    } else {
-      this.refreshData();
+    if (isOnline) {
+      // Debounce the refresh when coming back online
+      this.debouncedRefresh();
     }
   }
+
+  debouncedRefresh = debounce(() => {
+    // Only refresh if we've been offline and are now online
+    if (!this.offlineMode) {
+      this.refreshData();
+    }
+  }, 5000); // Wait 5 seconds before refreshing
 
   async checkConnectivity() {
     try {
@@ -149,20 +155,25 @@ class ServiceWorkerManager {
   async refreshData() {
     try {
       const currentPage = window.location.pathname.split('/').pop();
+      
+      // Skip refresh for non-weather pages
+      if (!pages.includes(currentPage)) {
+        return;
+      }
+
       if (currentPage === 'gefs.html' || currentPage === 'epsgram.html') {
         await this.refreshEnsembleData(currentPage);
       } else {
-        // Clear image caches before reload
-        const cache = await caches.open('weather-images-cache');
-        const keys = await cache.keys();
-        await Promise.all(keys.map(key => cache.delete(key)));
-        window.location.reload();
+        // Instead of reloading the page, just refresh the images
+        document.querySelectorAll('img').forEach(img => {
+          const timestamp = new Date().getTime();
+          const url = new URL(img.src);
+          url.searchParams.set('t', timestamp);
+          img.src = url.toString();
+        });
       }
     } catch (error) {
       console.error('Refresh failed:', error);
-      notificationService.showNotification('Napaka pri posodobitvi', {
-        body: 'Poskusite ponovno kasneje.'
-      });
     }
   }
 
@@ -172,7 +183,14 @@ class ServiceWorkerManager {
       await cache.keys().then(keys => 
         Promise.all(keys.map(key => cache.match(key)))
       );
-      window.location.reload();
+      // Instead of reloading, refresh specific ensemble images
+      const gefsImg = document.getElementById('gefs-img');
+      if (gefsImg) {
+        const timestamp = new Date().getTime();
+        const url = new URL(gefsImg.src);
+        url.searchParams.set('t', timestamp);
+        gefsImg.src = url.toString();
+      }
     } catch (error) {
       console.error('Ensemble refresh failed:', error);
     }
@@ -205,6 +223,8 @@ class TouchNavigation {
   setupPullToRefresh() {
     let touchStartY = 0;
     let touchEndY = 0;
+    let lastRefreshTime = 0;
+    const REFRESH_COOLDOWN = 30000; // 30 seconds cooldown
 
     this.container.addEventListener('touchstart', (e) => {
       touchStartY = e.touches[0].clientY;
@@ -213,10 +233,20 @@ class TouchNavigation {
     this.container.addEventListener('touchend', (e) => {
       touchEndY = e.changedTouches[0].clientY;
       const pullDistance = touchEndY - touchStartY;
+      const currentTime = Date.now();
 
       // If pulled down more than 100px and at the top of the page
-      if (pullDistance > 100 && window.scrollY === 0) {
-        window.location.reload();
+      // and enough time has passed since last refresh
+      if (pullDistance > 100 && window.scrollY === 0 && 
+          (currentTime - lastRefreshTime > REFRESH_COOLDOWN)) {
+        lastRefreshTime = currentTime;
+        // Instead of reloading the whole page, just refresh the images
+        document.querySelectorAll('img').forEach(img => {
+          const timestamp = new Date().getTime();
+          const url = new URL(img.src);
+          url.searchParams.set('t', timestamp);
+          img.src = url.toString();
+        });
       }
     });
   }

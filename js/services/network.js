@@ -24,13 +24,6 @@ class NetworkService {
   updateNetworkStatus(online) {
     this.isOnline = online;
     this.notifyListeners();
-
-    // Show appropriate notification
-    if (online) {
-      this.showOnlineNotification();
-    } else {
-      this.showOfflineNotification();
-    }
   }
 
   // Notify all registered listeners
@@ -40,45 +33,20 @@ class NetworkService {
     }
   }
 
-  // Show notification when app goes online
-  async showOnlineNotification() {
-    if (!('Notification' in window)) return;
-
-    if (Notification.permission === 'granted') {
-      new Notification('GreDež - Povezava vzpostavljena', {
-        body: 'Aplikacija je zdaj povezana z internetom.',
-        icon: '/gredez/images/icons/icon-192.png',
-        badge: '/gredez/images/icons/icon-96.png',
-        tag: 'network-status'
-      });
-    }
-  }
-
-  // Show notification when app goes offline
-  async showOfflineNotification() {
-    if (!('Notification' in window)) return;
-
-    if (Notification.permission === 'granted') {
-      new Notification('GreDež - Ni povezave', {
-        body: 'Aplikacija deluje v načinu brez povezave. Prikazani bodo shranjeni podatki.',
-        icon: '/gredez/images/icons/icon-192.png',
-        badge: '/gredez/images/icons/icon-96.png',
-        tag: 'network-status'
-      });
-    }
-  }
-
   // Setup periodic sync for background updates
   async setupPeriodicSync() {
-    if ('periodicSync' in registration) {
-      try {
-        // Register for periodic sync
-        await registration.periodicSync.register('update-weather', {
-          minInterval: 15 * 60 * 1000 // 15 minutes
-        });
-      } catch (error) {
-        console.error('Periodic sync registration failed:', error);
+    try {
+      // Only proceed if service worker registration is available
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        const registration = await navigator.serviceWorker.ready;
+        if ('periodicSync' in registration) {
+          await registration.periodicSync.register('update-weather', {
+            minInterval: 15 * 60 * 1000 // 15 minutes
+          });
+        }
       }
+    } catch (error) {
+      console.error('Periodic sync registration failed:', error);
     }
   }
 
@@ -103,17 +71,6 @@ class NetworkService {
       };
     }
     return null;
-  }
-
-  // Request notification permission if needed
-  async requestNotificationPermission() {
-    if (!('Notification' in window)) return false;
-    
-    if (Notification.permission !== 'granted') {
-      const permission = await Notification.requestPermission();
-      return permission === 'granted';
-    }
-    return true;
   }
 }
 

@@ -1,6 +1,6 @@
 importScripts('https://storage.googleapis.com/workbox-cdn/releases/7.0.0/workbox-sw.js');
 
-const VERSION = 'v3';
+const VERSION = 'v4';
 const ENSEMBLE_VERSION = '1';
 const CACHE_NAME = `gredez-${VERSION}`;
 const ENSEMBLE_CACHE = `gredez-ensemble-${ENSEMBLE_VERSION}`;
@@ -52,33 +52,43 @@ const DATA_CONFIG = {
     interval: 60 * 60 * 1000,    // 1 hour
     type: 'probability',
     dependencies: ['gefs']
+  },
+  'aladin': {
+    interval: 60 * 60 * 1000,    // 1 hour
+    type: 'model'
   }
 };
 
-// Cache ARSO meteorological images with timestamp tracking
+// Helper function to determine data type from URL
+const getDataTypeFromUrl = (url) => {
+  const urlPath = new URL(url).pathname;
+  if (urlPath.includes('/model/aladin/')) return 'aladin';
+  if (urlPath.includes('/model/ecmwf/')) return 'epsgram';
+  if (urlPath.includes('/observ/radar/')) return 'radar';
+  if (urlPath.includes('/observ/satellite/')) return 'satellite';
+  if (urlPath.includes('modeles16.meteociel.fr/modeles/gensp')) return 'gefs';
+  return 'other';
+};
+
+// Cache weather data with appropriate strategies
 workbox.routing.registerRoute(
-  /^https:\/\/meteo\.arso\.gov\.si\/uploads\/probase\/www\/(observ|forecast)/,
+  /^https:\/\/(meteo\.arso\.gov\.si|modeles16\.meteociel\.fr)/,
   new workbox.strategies.StaleWhileRevalidate({
     cacheName: 'weather-images-cache',
     plugins: [
       new workbox.expiration.ExpirationPlugin({
-        maxEntries: 50,
+        maxEntries: 100,
         maxAgeSeconds: 24 * 60 * 60, // 24 hours maximum
       }),
       new workbox.cacheableResponse.CacheableResponsePlugin({
         statuses: [0, 200],
       }),
       {
-        // Custom plugin to handle timestamps
-        async cacheWillUpdate({ request, response, state }) {
+        // Custom plugin to handle timestamps and data types
+        async cacheWillUpdate({ request, response }) {
           if (!response) return null;
           
-          const url = new URL(request.url);
-          const filename = url.pathname.split('/').pop();
-          const pathSegments = url.pathname.split('/');
-          const dataType = pathSegments.includes('gefs') ? 'gefs' : 
-                          pathSegments.includes('epsgram') ? 'epsgram' : filename;
-          
+          const dataType = getDataTypeFromUrl(request.url);
           const config = DATA_CONFIG[dataType] || {
             interval: 30 * 60 * 1000, // Default 30min
             type: 'observation'
@@ -101,25 +111,27 @@ workbox.routing.registerRoute(
               }
             }
             
-            // Prepare ensemble metadata
-            const newResponse = response.clone();
-            const headers = new Headers(newResponse.headers);
-            headers.set('x-ensemble-metadata', JSON.stringify({
+            // Clone and prepare response with ensemble metadata
+            const clonedResponse = response.clone();
+            const ensembleHeaders = new Headers(clonedResponse.headers);
+            ensembleHeaders.set('x-ensemble-metadata', JSON.stringify({
               lastUpdate: new Date().toISOString(),
               isCoherent: true,
               type: config.type,
               members: config.members,
               dependencies: config.dependencies || []
             }));
+            ensembleHeaders.set('x-cached-time', new Date().toISOString());
+            ensembleHeaders.set('x-data-type', dataType);
             
-            return new Response(await newResponse.blob(), {
-              status: newResponse.status,
-              statusText: newResponse.statusText,
-              headers: headers
+            return new Response(await clonedResponse.blob(), {
+              status: clonedResponse.status,
+              statusText: clonedResponse.statusText,
+              headers: ensembleHeaders
             });
           }
           
-          // Handle regular observation data
+          // For regular observation data, check existing cache
           const cache = await caches.open('weather-images-cache');
           const cachedResponse = await cache.match(request);
           
@@ -127,21 +139,22 @@ workbox.routing.registerRoute(
             const cachedDate = new Date(cachedResponse.headers.get('x-cached-time') || 0);
             const now = new Date();
             
-            // Only update if enough time has passed
+            // Return cached response if still fresh
             if ((now - new Date(cachedDate)) < config.interval) {
               return cachedResponse;
             }
           }
           
-          // Clone response and add timestamp
-          const newResponse = response.clone();
-          const headers = new Headers(newResponse.headers);
-          headers.set('x-cached-time', new Date().toISOString());
+          // Clone and prepare response for caching
+          const clonedResponse = response.clone();
+          const observationHeaders = new Headers(clonedResponse.headers);
+          observationHeaders.set('x-cached-time', new Date().toISOString());
+          observationHeaders.set('x-data-type', dataType);
           
-          return new Response(await newResponse.blob(), {
-            status: newResponse.status,
-            statusText: newResponse.statusText,
-            headers: headers
+          return new Response(await clonedResponse.blob(), {
+            status: clonedResponse.status,
+            statusText: clonedResponse.statusText,
+            headers: observationHeaders
           });
         }
       }

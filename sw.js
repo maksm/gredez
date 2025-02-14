@@ -177,7 +177,7 @@ workbox.precaching.precacheAndRoute([
   { url: '/gredez/manifest.webmanifest', revision: VERSION },
   { url: '/gredez/images/icons/icon-72.png', revision: VERSION },
   { url: '/gredez/images/icons/icon-96.png', revision: VERSION },
-  { url: '/gredez/images/icons/icon-128.png', revision: VERSION },
+  { url: '/gredez/images/icons/icon-128.png', revision: VERSIOxN },
   { url: '/gredez/images/icons/icon-144.png', revision: VERSION },
   { url: '/gredez/images/icons/icon-152.png', revision: VERSION },
   { url: '/gredez/images/icons/icon-192.png', revision: VERSION },
@@ -213,8 +213,9 @@ workbox.routing.registerRoute(
         maxEntries: 25,
       }),
       {
-        handlerDidError: async () => {
-          return await caches.match('/gredez/offline.html');
+        handlerDidError: async ({ request }) => {
+          // Return the cached version of the page instead of offline.html
+          return await caches.match(request.url);
         },
       },
     ],
@@ -226,28 +227,38 @@ const bgSyncPlugin = new workbox.backgroundSync.BackgroundSyncPlugin('failed-ima
   maxRetentionTime: 24 * 60 // Retry for up to 24 hours
 });
 
-// Handle image requests with stale-while-revalidate strategy
-workbox.routing.registerRoute(
-  ({request}) => request.destination === 'image',
-  new workbox.strategies.StaleWhileRevalidate({
-    cacheName: IMAGE_CACHE,
-    plugins: [
-      bgSyncPlugin,
-      new workbox.expiration.ExpirationPlugin({
-        maxEntries: 60,
-        maxAgeSeconds: 24 * 60 * 60, // 24 hours
-      }),
-      new workbox.cacheableResponse.CacheableResponsePlugin({
-        statuses: [0, 200],
-      }),
-      {
-        handlerDidError: async () => {
-          return await caches.match('/gredez/offline.html');
-        },
-      }
-    ],
-  })
-);
+  // Handle image requests with stale-while-revalidate strategy
+  workbox.routing.registerRoute(
+    ({request}) => request.destination === 'image',
+    new workbox.strategies.StaleWhileRevalidate({
+      cacheName: IMAGE_CACHE,
+      plugins: [
+        bgSyncPlugin,
+        new workbox.expiration.ExpirationPlugin({
+          maxEntries: 60,
+          maxAgeSeconds: 24 * 60 * 60, // 24 hours
+        }),
+        new workbox.cacheableResponse.CacheableResponsePlugin({
+          statuses: [0, 200],
+        }),
+        {
+          // Return transparent placeholder for failed images
+          handlerDidError: async () => {
+            return new Response(
+              'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+              {
+                headers: {
+                  'Content-Type': 'image/gif',
+                  'x-cached-time': new Date().toISOString(),
+                  'x-error': 'true'
+                }
+              }
+            );
+          },
+        }
+      ],
+    })
+  );
 
 // Clean up old caches
 self.addEventListener('activate', event => {

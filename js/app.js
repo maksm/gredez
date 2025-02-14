@@ -8,8 +8,9 @@ const pages = [
   'gefs.html'
 ];
 
-// Import services
+// Import services and components
 import { networkService } from './services/network.js';
+import { NetworkStatus } from './components/network-status.js';
 
 // Debounce utility
 const debounce = (fn, delay) => {
@@ -116,11 +117,31 @@ class ServiceWorkerManager {
     }
     
     this.offlineMode = !isOnline;
-    document.body.classList.toggle('offline', !isOnline);
     
     if (isOnline) {
       // Debounce the refresh when coming back online
       this.debouncedRefresh();
+    } else {
+      // When going offline, ensure cached content is displayed
+      this.showCachedContent();
+    }
+  }
+
+  async showCachedContent() {
+    try {
+      const cache = await caches.open('pages-cache');
+      const currentUrl = window.location.href;
+      const cachedResponse = await cache.match(currentUrl);
+      
+      if (cachedResponse) {
+        // Update timestamps to show cached state
+        document.querySelectorAll('.image-timestamp').forEach(timestamp => {
+          timestamp.classList.add('cached');
+          timestamp.textContent = `Shranjeno: ${new Date().toLocaleString('sl-SI')}`;
+        });
+      }
+    } catch (error) {
+      console.error('Error showing cached content:', error);
     }
   }
 
@@ -498,7 +519,22 @@ window.addEventListener('popstate', (event) => {
   }
 });
 
+// Initialize network status component
+const initializeNetworkStatus = () => {
+  // Remove any existing network status element
+  const existingStatus = document.querySelector('network-status');
+  if (existingStatus) {
+    existingStatus.remove();
+  }
+  
+  // Add new network status element
+  const networkStatus = document.createElement('network-status');
+  document.body.insertBefore(networkStatus, document.body.firstChild);
+};
+
 document.addEventListener('DOMContentLoaded', async () => {
+  // Initialize network status component
+  initializeNetworkStatus();
   themeManager = new ThemeManager();
   
   // Load header first

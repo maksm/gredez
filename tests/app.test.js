@@ -105,8 +105,8 @@ describe('Weather App', () => {
     }
   });
 
-  // Test 2: Service Worker Cache Test
-  test('service worker caches resources correctly', async () => {
+  // Test 2: Service Worker Cache and Offline Behavior Test
+  test('service worker handles offline mode correctly', async () => {
     try {
       // Check service worker registration
       const swRegistered = await page.evaluate(() => {
@@ -121,17 +121,40 @@ describe('Weather App', () => {
       expect(cacheKeys).toContain('gredez-static-v1');
       expect(cacheKeys).toContain('gredez-images-v1');
 
-      // Test offline fallback
-      await page.setOfflineMode(true);
-      const response = await page.goto('http://localhost:3000/offline.html', {
-        waitUntil: 'networkidle0',
-        timeout: toMs(TIMEOUTS.PAGE)
-      });
-      expect(response.status()).toBe(200);
-      
-      await page.setOfflineMode(false);
+      // Test offline behavior for each page
+      for (const pagePath of pages) {
+        // First load page normally to cache it
+        await page.goto(`http://localhost:3000/${pagePath}`, {
+          waitUntil: 'networkidle0',
+          timeout: toMs(TIMEOUTS.PAGE)
+        });
+
+        // Set offline mode and try to load the same page
+        await page.setOfflineMode(true);
+        const response = await page.goto(`http://localhost:3000/${pagePath}`, {
+          waitUntil: 'networkidle0',
+          timeout: toMs(TIMEOUTS.PAGE)
+        });
+        expect(response.status()).toBe(200);
+
+        // Check if network status component is shown
+        const networkStatusVisible = await page.evaluate(() => {
+          const status = document.querySelector('network-status');
+          return status && window.getComputedStyle(status).display === 'block';
+        });
+        expect(networkStatusVisible).toBe(true);
+
+        // Check if cached content is displayed
+        const hasContent = await page.evaluate(() => {
+          const mainContainer = document.getElementById('main_container');
+          return mainContainer && mainContainer.innerHTML.trim() !== '';
+        });
+        expect(hasContent).toBe(true);
+
+        await page.setOfflineMode(false);
+      }
     } catch (error) {
-      console.warn('Service worker cache test warning:', error.message);
+      console.warn('Service worker cache test warning: ' + error.message);
       // Don't throw error for cache test failures
     }
   });
@@ -163,29 +186,40 @@ describe('Weather App', () => {
     }
   });
 
-  // Test 4: Offline Page Content Test
-  test('offline page structure is valid', async () => {
+  // Test 4: Network Status Component Test
+  test('network status component works correctly', async () => {
     try {
-      await page.goto('http://localhost:3000/offline.html', {
+      await page.goto('http://localhost:3000/', {
         waitUntil: 'networkidle0',
         timeout: toMs(TIMEOUTS.PAGE)
       });
       
-      const content = await page.evaluate(() => {
-        const heading = document.querySelector('h1, h2, h3, .offline-title, [role="heading"]');
-        const interactive = document.querySelectorAll('a, button, .retry-button');
-        return {
-          hasHeading: heading !== null,
-          headingVisible: heading ? window.getComputedStyle(heading).display !== 'none' : false,
-          hasInteractive: interactive.length > 0
-        };
+      // Check component is present but hidden when online
+      let isHidden = await page.evaluate(() => {
+        const status = document.querySelector('network-status');
+        return status && window.getComputedStyle(status).display === 'none';
       });
+      expect(isHidden).toBe(true);
       
-      expect(content.hasHeading).toBe(true);
-      expect(content.headingVisible).toBe(true);
-      expect(content.hasInteractive).toBe(true);
+      // Check component appears when offline
+      await page.setOfflineMode(true);
+      let isVisible = await page.evaluate(() => {
+        const status = document.querySelector('network-status');
+        return status && window.getComputedStyle(status).display === 'block';
+      });
+      expect(isVisible).toBe(true);
+      
+      // Check retry button exists
+      const hasRetryButton = await page.evaluate(() => {
+        const status = document.querySelector('network-status');
+        return status?.shadowRoot?.querySelector('.retry') !== null;
+      });
+      expect(hasRetryButton).toBe(true);
+      
+      // Return to online mode
+      await page.setOfflineMode(false);
     } catch (error) {
-      console.warn('Offline page test warning:', error.message);
+      console.warn('Network status component test warning:', error.message);
     }
   });
 

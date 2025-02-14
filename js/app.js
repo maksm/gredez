@@ -8,6 +8,10 @@ const pages = [
   'gefs.html'
 ];
 
+// Import services
+import { networkService } from './services/network.js';
+import { notificationService } from './services/notifications.js';
+
 // Service Worker and Data Management
 class ServiceWorkerManager {
   constructor() {
@@ -15,21 +19,49 @@ class ServiceWorkerManager {
     this.initialized = false;
     this.offlineMode = !navigator.onLine;
     this.ensembleState = new Map();
+    this.deferredInstallPrompt = null;
     
     if ('serviceWorker' in navigator) {
       this.initialize();
     }
+
+    // Listen for beforeinstallprompt
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      this.deferredInstallPrompt = e;
+      this.showInstallPrompt();
+    });
   }
 
   async initialize() {
     try {
+      // Request notification permission early
+      await notificationService.requestPermission();
+      
       this.registration = await navigator.serviceWorker.register('/gredez/sw.js', { 
         scope: '/gredez/' 
       });
       
+      // Request persistent storage
+      if (navigator.storage && navigator.storage.persist) {
+        const isPersisted = await navigator.storage.persist();
+        console.log(`Persisted storage granted: ${isPersisted}`);
+      }
+      
       this.setupEventListeners();
       this.checkConnectivity();
       this.initialized = true;
+      
+      // Setup periodic sync if supported
+      if ('periodicSync' in this.registration) {
+        try {
+          await this.registration.periodicSync.register('update-weather', {
+            minInterval: 15 * 60 * 1000 // 15 minutes
+          });
+        } catch (error) {
+          console.error('Periodic sync registration failed:', error);
+        }
+      }
     } catch (error) {
       console.error('Service Worker registration failed:', error);
     }
@@ -41,73 +73,96 @@ class ServiceWorkerManager {
       const newWorker = this.registration.installing;
       newWorker.addEventListener('statechange', () => {
         if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-          this.showUpdatePrompt(newWorker);
+          notificationService.showUpdateNotification();
         }
       });
     });
 
-    // Connectivity changes
-    window.addEventListener('online', () => this.handleConnectivityChange(true));
-    window.addEventListener('offline', () => this.handleConnectivityChange(false));
+    // Use network service for connectivity changes
+    networkService.addListener((isOnline) => {
+      this.handleConnectivityChange(isOnline);
+    });
   }
 
-  showUpdatePrompt(newWorker) {
-    const updateBanner = document.createElement('div');
-    updateBanner.className = 'update-banner';
-    updateBanner.innerHTML = `
-      <div class="update-message">
-        Nova verzija aplikacije je na voljo.
-        <button class="update-button">Posodobi zdaj</button>
-      </div>
-    `;
-    
-    document.body.appendChild(updateBanner);
-    
-    updateBanner.querySelector('.update-button').addEventListener('click', () => {
-      newWorker.postMessage('SKIP_WAITING');
-      window.location.reload();
-    });
+  showInstallPrompt() {
+    if (this.deferredInstallPrompt) {
+      const installBanner = document.createElement('div');
+      installBanner.className = 'install-banner';
+      installBanner.innerHTML = `
+        <div class="install-message">
+          Namesti aplikacijo na napravo
+          <button class="install-button">Namesti</button>
+          <button class="dismiss-button">Zapri</button>
+        </div>
+      `;
+      
+      document.body.appendChild(installBanner);
+      
+      installBanner.querySelector('.install-button').addEventListener('click', async () => {
+        this.deferredInstallPrompt.prompt();
+        const { outcome } = await this.deferredInstallPrompt.userChoice;
+        if (outcome === 'accepted') {
+          console.log('App installed');
+        }
+        this.deferredInstallPrompt = null;
+        installBanner.remove();
+      });
+      
+      installBanner.querySelector('.dismiss-button').addEventListener('click', () => {
+        installBanner.remove();
+      });
+    }
   }
 
   handleConnectivityChange(isOnline) {
     this.offlineMode = !isOnline;
     document.body.classList.toggle('offline', !isOnline);
     
-    const statusBanner = document.getElementById('connectivity-status') || 
-                        document.createElement('div');
-    statusBanner.id = 'connectivity-status';
-    statusBanner.className = isOnline ? 'online' : 'offline';
-    statusBanner.textContent = isOnline ? 
-      'Povezava vzpostavljena - posodabljam podatke...' : 
-      'Brez povezave - prikazujem shranjene podatke';
-    
-    if (!statusBanner.parentNode) {
-      document.body.insertBefore(statusBanner, document.body.firstChild);
-    }
-    
-    if (isOnline) {
+    if (!isOnline) {
+      notificationService.showOfflineModeNotification();
+    } else {
       this.refreshData();
     }
   }
 
   async checkConnectivity() {
     try {
+      // Check cache status
       const cache = await caches.open('weather-images-cache');
       const keys = await cache.keys();
       const hasCache = keys.length > 0;
-      
       document.body.classList.toggle('has-cache', hasCache);
+      
+      // Check storage quota
+      if (navigator.storage && navigator.storage.estimate) {
+        const estimate = await navigator.storage.estimate();
+        const percentageUsed = (estimate.usage / estimate.quota) * 100;
+        if (percentageUsed > 80) {
+          console.warn(`Storage usage high: ${percentageUsed.toFixed(2)}%`);
+        }
+      }
     } catch (error) {
       console.error('Cache check failed:', error);
     }
   }
 
   async refreshData() {
-    const currentPage = window.location.pathname.split('/').pop();
-    if (currentPage === 'gefs.html' || currentPage === 'epsgram.html') {
-      await this.refreshEnsembleData(currentPage);
-    } else {
-      window.location.reload();
+    try {
+      const currentPage = window.location.pathname.split('/').pop();
+      if (currentPage === 'gefs.html' || currentPage === 'epsgram.html') {
+        await this.refreshEnsembleData(currentPage);
+      } else {
+        // Clear image caches before reload
+        const cache = await caches.open(IMAGE_CACHE);
+        const keys = await cache.keys();
+        await Promise.all(keys.map(key => cache.delete(key)));
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Refresh failed:', error);
+      notificationService.showNotification('Napaka pri posodobitvi', {
+        body: 'Poskusite ponovno kasneje.'
+      });
     }
   }
 
@@ -183,7 +238,48 @@ class TouchNavigation {
       nextIndex = currentIndex < pages.length - 1 ? currentIndex + 1 : 0;
     }
 
-    window.location.href = pages[nextIndex];
+    // Use history.pushState for smoother navigation
+    const nextPage = pages[nextIndex];
+    history.pushState({ page: nextPage }, '', nextPage);
+    this.loadPageContent(nextPage);
+  }
+
+  async loadPageContent(page) {
+    try {
+      const response = await fetch(page);
+      const html = await response.text();
+      
+      // Parse the HTML content
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      
+      // Update main container content
+      const mainContainer = document.getElementById('main_container');
+      if (mainContainer) {
+        // Clear existing content and wrappers
+        mainContainer.innerHTML = '';
+        
+        // Get the new content
+        const newContent = doc.getElementById('main_container');
+        
+        // Copy attributes
+        Array.from(newContent.attributes).forEach(attr => {
+          mainContainer.setAttribute(attr.name, attr.value);
+        });
+        
+        // Insert new content
+        mainContainer.innerHTML = newContent.innerHTML;
+        
+        // Initialize content immediately after updating DOM
+        requestAnimationFrame(() => {
+          initializeContent();
+        });
+      }
+    } catch (error) {
+      console.error('Error loading page content:', error);
+      // Fallback to traditional navigation if fetch fails
+      window.location.href = page;
+    }
   }
 }
 
@@ -192,7 +288,16 @@ const loadHeader = async () => {
   try {
     const response = await fetch('header.html');
     const html = await response.text();
-    document.getElementById('header').innerHTML = html;
+    const header = document.getElementById('header');
+    header.innerHTML = html;
+    
+    // Re-attach theme toggle listener after header loads
+    themeManager?.attachToggleListener();
+    
+    // Re-apply current theme
+    const currentTheme = localStorage.getItem('theme') || 
+      (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.dataset.theme = currentTheme;
   } catch (error) {
     console.error('Error loading header:', error);
   }
@@ -276,45 +381,25 @@ class ThemeManager {
   }
 }
 
-// Initialize
-let themeManager;
-document.addEventListener('DOMContentLoaded', () => {
-  themeManager = new ThemeManager();
-  
-  // Load header and ensure theme toggle works
-  loadHeader().then(() => {
-    themeManager.attachToggleListener();
-    
-    // Watch for dynamic header changes
-    const headerObserver = new MutationObserver(() => {
-      themeManager.attachToggleListener();
-    });
-    
-    const header = document.getElementById('header');
-    if (header) {
-      headerObserver.observe(header, { 
-        childList: true,
-        subtree: true 
-      });
-    }
-  });
-  
-  const mainContainer = document.getElementById('main_container');
-  if (mainContainer) {
-    new TouchNavigation(mainContainer);
-  }
-
-  // Add loading state and timestamp to images
+// Initialize images with wrappers and timestamps
+const initializeImages = () => {
   document.querySelectorAll('img').forEach(img => {
+    // Skip if already in a wrapper
+    if (img.closest('.image-wrapper')) {
+      return;
+    }
+    
+    // Create wrapper
     const wrapper = document.createElement('div');
     wrapper.className = 'image-wrapper';
     img.parentNode.insertBefore(wrapper, img);
     wrapper.appendChild(img);
     
+    // Create timestamp
     const timestamp = document.createElement('div');
     timestamp.className = 'image-timestamp';
     wrapper.appendChild(timestamp);
-
+    
     // Function to update timestamp display
     const updateTimestamp = async () => {
       try {
@@ -334,20 +419,82 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     };
 
-    img.addEventListener('load', () => {
-      img.classList.add('loaded');
-      updateTimestamp();
-    });
+    // Handle image load
+    const handleLoad = () => {
+      requestAnimationFrame(() => {
+        img.classList.add('loaded');
+        updateTimestamp();
+      });
+    };
+
+    // Handle image error
+    const handleError = () => {
+      requestAnimationFrame(() => {
+        img.classList.add('error');
+        img.setAttribute('alt', 'Napaka pri nalaganju slike');
+        timestamp.textContent = 'Napaka pri nalaganju';
+        timestamp.classList.add('error');
+      });
+    };
+
+    // Add event listeners
+    img.addEventListener('load', handleLoad);
+    img.addEventListener('error', handleError);
     
-    img.addEventListener('error', () => {
-      img.classList.add('error');
-      img.setAttribute('alt', 'Napaka pri nalaganju slike');
-      timestamp.textContent = 'Napaka pri nalaganju';
-      timestamp.classList.add('error');
-    });
+    // Force load event if image is already loaded
+    if (img.complete) {
+      handleLoad();
+    }
   });
+};
+
+// Set up GEFS image if on GEFS page
+const initializeGEFSImage = () => {
+  const gefsImg = document.getElementById('gefs-img');
+  if (gefsImg) {
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    gefsImg.src = `https://modeles16.meteociel.fr/modeles/gensp/runs/${today}00/graphe3_10000___14.2452830189_45.7894736842_.gif`;
+  }
+};
+
+// Initialize content
+const initializeContent = () => {
+  // Initialize all images
+  initializeImages();
+  // Set up GEFS image if needed
+  initializeGEFSImage();
+};
+
+// Initialize
+let themeManager;
+
+// Handle browser back/forward navigation
+window.addEventListener('popstate', (event) => {
+  if (event.state && event.state.page) {
+    const touchNav = document.getElementById('main_container')?._touchNav;
+    if (touchNav) {
+      touchNav.loadPageContent(event.state.page);
+    }
+  }
 });
 
+document.addEventListener('DOMContentLoaded', async () => {
+  themeManager = new ThemeManager();
+  
+  // Load header first
+  await loadHeader();
+  
+  // Initialize touch navigation
+  const mainContainer = document.getElementById('main_container');
+  if (mainContainer) {
+    const touchNav = new TouchNavigation(mainContainer);
+    // Store TouchNavigation instance for popstate handling
+    mainContainer._touchNav = touchNav;
+  }
+
+  // Initialize content
+  initializeContent();
+});
 
 // Initialize Service Worker Manager
 let swManager;

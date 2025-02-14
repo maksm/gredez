@@ -2,22 +2,31 @@
 <html lang="sl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#0d6efd">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+    <meta name="theme-color" content="#0d6efd" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
     <meta name="description" content="Meteorološki podatki za Ljubljano iz različnih virov">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="GreDež">
+    <meta name="msapplication-TileColor" content="#0d6efd">
+    <meta name="msapplication-tap-highlight" content="no">
     
     <title>GreDež - Vreme Slovenija</title>
     
     <link rel="canonical" href="https://maksm.github.io/gredez/">
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="icon" type="image/png" href="icon.png">
-    <link rel="apple-touch-icon" href="icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="images/icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="images/icons/icon-512.png">
+    <link rel="apple-touch-icon" href="images/icons/icon-192.png">
+    <link rel="apple-touch-startup-image" href="images/icons/icon-512.png">
+    <link rel="mask-icon" href="images/icons/icon-512.png" color="#0d6efd">
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" 
           rel="stylesheet" 
-          crossorigin="anonymous">
+          crossorigin="anonymous"
+          fetchpriority="high">
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -92,7 +101,38 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" 
-            crossorigin="anonymous"></script>
-    <script src="js/app.js" type="module"></script>
+            crossorigin="anonymous"
+            defer></script>
+    <script src="js/app.js" type="module" defer></script>
+
+    <script>
+        // Check if the app is in standalone mode (installed PWA)
+        if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+            document.documentElement.setAttribute('data-pwa', 'true');
+        }
+        
+        // Register service worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/gredez/sw.js')
+                    .then(registration => {
+                        // Check for updates
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    // New content is available
+                                    if (confirm('Nova verzija aplikacije je na voljo. Posodobi zdaj?')) {
+                                        registration.waiting.postMessage('SKIP_WAITING');
+                                        window.location.reload();
+                                    }
+                                }
+                            });
+                        });
+                    })
+                    .catch(err => console.error('Service Worker registration failed:', err));
+            });
+        }
+    </script>
 </body>
 </html>

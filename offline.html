@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0d6efd">
+    <title>Brez povezave - GreDež</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" 
+          rel="stylesheet" 
+          crossorigin="anonymous">
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .offline-container {
+            text-align: center;
+            padding: 2rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .offline-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            color: #0d6efd;
+        }
+        .offline-message {
+            margin: 2rem 0;
+        }
+        .retry-button {
+            margin-top: 1rem;
+        }
+        .cached-data {
+            margin-top: 2rem;
+            text-align: left;
+        }
+        .cached-timestamp {
+            font-size: 0.9rem;
+            color: #6c757d;
+            margin-top: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="offline-container">
+        <div class="offline-icon">📡</div>
+        <h1>GreDež - Trenutno brez povezave</h1>
+        
+        <div class="offline-message">
+            <p class="lead">Trenutno ste brez povezave z internetom.</p>
+            <p>Prikazani bodo zadnji shranjeni podatki, če so na voljo.</p>
+        </div>
+
+        <button class="btn btn-primary retry-button" onclick="window.location.reload()">
+            Poskusi ponovno
+        </button>
+
+        <div class="cached-data">
+            <h4>Zadnji shranjeni podatki</h4>
+            <div id="cachedContent">
+                <!-- Will be populated by JavaScript -->
+            </div>
+            <p class="cached-timestamp" id="lastUpdate"></p>
+        </div>
+    </div>
+
+    <script>
+        // Try to load cached data
+        if ('caches' in window) {
+            caches.match(window.location.pathname.replace('offline.html', '')).then(response => {
+                if (response) {
+                    const lastUpdateEl = document.getElementById('lastUpdate');
+                    const cachedTime = response.headers.get('x-cached-time');
+                    if (cachedTime) {
+                        const date = new Date(cachedTime);
+                        lastUpdateEl.textContent = `Zadnja posodobitev: ${date.toLocaleString('sl')}`;
+                    }
+                }
+            });
+
+            // Try to load cached images
+            const imageUrls = [
+                'https://meteo.arso.gov.si/uploads/probase/www/observ/surface/graphic/weatherSat_si_pda.png',
+                'https://meteo.arso.gov.si/uploads/probase/www/observ/radar/si0_zm_pda_latest.gif',
+                'https://meteo.arso.gov.si/uploads/probase/www/observ/satellite/nwcsaf_ct_pda_latest.gif'
+            ];
+
+            const cachedContent = document.getElementById('cachedContent');
+            
+            imageUrls.forEach(url => {
+                caches.match(url).then(response => {
+                    if (response) {
+                        const img = document.createElement('img');
+                        img.src = url;
+                        img.alt = 'Cached weather data';
+                        img.className = 'img-fluid mt-3';
+                        cachedContent.appendChild(img);
+                    }
+                });
+            });
+        }
+
+        // Listen for online status changes
+        window.addEventListener('online', () => {
+            window.location.reload();
+        });
+    </script>
+</body>
+</html>

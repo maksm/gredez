@@ -1,18 +1,29 @@
 importScripts('https://storage.googleapis.com/workbox-cdn/releases/7.0.0/workbox-sw.js');
 
-const VERSION = 'v2';
+const VERSION = 'v3';
 const ENSEMBLE_VERSION = '1';
 const CACHE_NAME = `gredez-${VERSION}`;
 const ENSEMBLE_CACHE = `gredez-ensemble-${ENSEMBLE_VERSION}`;
+const STATIC_CACHE = `gredez-static-${VERSION}`;
+const IMAGE_CACHE = `gredez-images-${VERSION}`;
+const API_CACHE = `gredez-api-${VERSION}`;
 
 // Use the latest workbox strategies
 workbox.setConfig({ debug: false });
 
-// Cache the Google Fonts stylesheets with a stale-while-revalidate strategy.
+// Cache CDN resources
 workbox.routing.registerRoute(
   /^https:\/\/cdn\.jsdelivr\.net\/npm\/bootstrap/,
   new workbox.strategies.StaleWhileRevalidate({
     cacheName: 'bootstrap-cache',
+    plugins: [
+      new workbox.expiration.ExpirationPlugin({
+        maxAgeSeconds: 7 * 24 * 60 * 60, // 1 week
+      }),
+      new workbox.cacheableResponse.CacheableResponsePlugin({
+        statuses: [0, 200],
+      }),
+    ],
   })
 );
 
@@ -138,7 +149,7 @@ workbox.routing.registerRoute(
   })
 );
 
-// Cache static assets
+// Cache static assets with versioning
 workbox.precaching.precacheAndRoute([
   { url: '/gredez/', revision: VERSION },
   { url: '/gredez/index.html', revision: VERSION },
@@ -147,28 +158,54 @@ workbox.precaching.precacheAndRoute([
   { url: '/gredez/epsgram.html', revision: VERSION },
   { url: '/gredez/blitz.html', revision: VERSION },
   { url: '/gredez/gefs.html', revision: VERSION },
+  { url: '/gredez/offline.html', revision: VERSION },
   { url: '/gredez/css/styles.css', revision: VERSION },
   { url: '/gredez/js/app.js', revision: VERSION },
-  { url: '/gredez/manifest.webmanifest', revision: VERSION }
+  { url: '/gredez/manifest.webmanifest', revision: VERSION },
+  { url: '/gredez/images/icons/icon-72.png', revision: VERSION },
+  { url: '/gredez/images/icons/icon-96.png', revision: VERSION },
+  { url: '/gredez/images/icons/icon-128.png', revision: VERSION },
+  { url: '/gredez/images/icons/icon-144.png', revision: VERSION },
+  { url: '/gredez/images/icons/icon-152.png', revision: VERSION },
+  { url: '/gredez/images/icons/icon-192.png', revision: VERSION },
+  { url: '/gredez/images/icons/icon-384.png', revision: VERSION },
+  { url: '/gredez/images/icons/icon-512.png', revision: VERSION }
 ]);
 
-// Fallback for navigation requests
+// Cache static assets with network first strategy
+workbox.routing.registerRoute(
+  /\.(css|js|json|png)$/,
+  new workbox.strategies.NetworkFirst({
+    cacheName: STATIC_CACHE,
+    plugins: [
+      new workbox.expiration.ExpirationPlugin({
+        maxEntries: 60,
+        maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+      }),
+      new workbox.cacheableResponse.CacheableResponsePlugin({
+        statuses: [0, 200],
+      }),
+    ],
+  })
+);
+
+// Handle navigation requests with offline fallback
 workbox.routing.registerRoute(
   ({ request }) => request.mode === 'navigate',
-  async () => {
-    try {
-      return await workbox.strategies.NetworkFirst({
-        cacheName: 'pages-cache',
-        plugins: [
-          new workbox.expiration.ExpirationPlugin({
-            maxEntries: 25,
-          }),
-        ],
-      }).handle(arguments);
-    } catch (error) {
-      return caches.match('/gredez/index.html');
-    }
-  }
+  new workbox.strategies.NetworkFirst({
+    cacheName: 'pages-cache',
+    networkTimeoutSeconds: 5,
+    plugins: [
+      new workbox.expiration.ExpirationPlugin({
+        maxEntries: 25,
+      }),
+      {
+        handlerDidError: async () => {
+          return await caches.match('/gredez/offline.html');
+        },
+      },
+    ],
+  })
 );
 
 // Background sync for failed image requests
@@ -176,20 +213,74 @@ const bgSyncPlugin = new workbox.backgroundSync.BackgroundSyncPlugin('failed-ima
   maxRetentionTime: 24 * 60 // Retry for up to 24 hours
 });
 
-// Register a route for image requests that handles offline failures
+// Handle image requests with stale-while-revalidate strategy
 workbox.routing.registerRoute(
   ({request}) => request.destination === 'image',
-  new workbox.strategies.NetworkFirst({
-    cacheName: 'images-cache',
+  new workbox.strategies.StaleWhileRevalidate({
+    cacheName: IMAGE_CACHE,
     plugins: [
       bgSyncPlugin,
       new workbox.expiration.ExpirationPlugin({
         maxEntries: 60,
-        maxAgeSeconds: 30 * 24 * 60 * 60, // 30 Days
+        maxAgeSeconds: 24 * 60 * 60, // 24 hours
       }),
+      new workbox.cacheableResponse.CacheableResponsePlugin({
+        statuses: [0, 200],
+      }),
+      {
+        handlerDidError: async () => {
+          return await caches.match('/gredez/offline.html');
+        },
+      }
     ],
   })
 );
+
+// Clean up old caches
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cacheName => {
+          if (
+            cacheName !== CACHE_NAME &&
+            cacheName !== STATIC_CACHE &&
+            cacheName !== IMAGE_CACHE &&
+            cacheName !== API_CACHE &&
+            cacheName !== ENSEMBLE_CACHE &&
+            cacheName !== 'bootstrap-cache'
+          ) {
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    })
+  );
+});
+
+// Handle service worker updates
+self.addEventListener('message', (event) => {
+  if (event.data === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
+// Periodic sync for weather data
+self.addEventListener('periodicsync', async (event) => {
+  if (event.tag === 'update-weather') {
+    const imageUrls = [
+      'https://meteo.arso.gov.si/uploads/probase/www/observ/surface/graphic/weatherSat_si_pda.png',
+      'https://meteo.arso.gov.si/uploads/probase/www/observ/radar/si0_zm_pda_latest.gif',
+      'https://meteo.arso.gov.si/uploads/probase/www/observ/satellite/nwcsaf_ct_pda_latest.gif'
+    ];
+
+    try {
+      await Promise.all(imageUrls.map(url => fetch(url)));
+    } catch (error) {
+      console.error('Periodic sync failed:', error);
+    }
+  }
+});
 
 // Add an offline fallback page
 self.addEventListener('install', (event) => {

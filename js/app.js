@@ -153,7 +153,7 @@ class ServiceWorkerManager {
         await this.refreshEnsembleData(currentPage);
       } else {
         // Clear image caches before reload
-        const cache = await caches.open(IMAGE_CACHE);
+        const cache = await caches.open('weather-images-cache');
         const keys = await cache.keys();
         await Promise.all(keys.map(key => cache.delete(key)));
         window.location.reload();
@@ -383,68 +383,58 @@ class ThemeManager {
 
 // Initialize images with wrappers and timestamps
 const initializeImages = () => {
+  const template = document.createElement('template');
+  template.innerHTML = `
+    <div class="image-wrapper">
+      <div class="image-timestamp"></div>
+    </div>
+  `;
+
   document.querySelectorAll('img').forEach(img => {
     // Skip if already in a wrapper
     if (img.closest('.image-wrapper')) {
       return;
     }
     
-    // Create wrapper
-    const wrapper = document.createElement('div');
-    wrapper.className = 'image-wrapper';
+    // Clone and insert wrapper
+    const wrapper = template.content.firstElementChild.cloneNode(true);
     img.parentNode.insertBefore(wrapper, img);
-    wrapper.appendChild(img);
+    wrapper.insertBefore(img, wrapper.firstElementChild);
+    const timestamp = wrapper.querySelector('.image-timestamp');
     
-    // Create timestamp
-    const timestamp = document.createElement('div');
-    timestamp.className = 'image-timestamp';
-    wrapper.appendChild(timestamp);
-    
-    // Function to update timestamp display
+    // Update timestamp once per image load
     const updateTimestamp = async () => {
       try {
         const response = await fetch(img.src, { method: 'HEAD' });
         const cachedTime = response.headers.get('x-cached-time');
-        if (cachedTime) {
-          const measurementTime = new Date(cachedTime);
-          timestamp.textContent = `Meritev: ${measurementTime.toLocaleString('sl-SI')}`;
-          timestamp.classList.add('cached');
-        } else {
-          timestamp.textContent = `V živo: ${new Date().toLocaleString('sl-SI')}`;
-          timestamp.classList.remove('cached');
-        }
-      } catch (error) {
+        timestamp.textContent = cachedTime ? 
+          `Meritev: ${new Date(cachedTime).toLocaleString('sl-SI')}` :
+          `V živo: ${new Date().toLocaleString('sl-SI')}`;
+        timestamp.classList.toggle('cached', !!cachedTime);
+      } catch {
         timestamp.textContent = `Shranjeno: ${new Date().toLocaleString('sl-SI')}`;
         timestamp.classList.add('cached');
       }
     };
 
-    // Handle image load
-    const handleLoad = () => {
-      requestAnimationFrame(() => {
-        img.classList.add('loaded');
-        updateTimestamp();
-      });
-    };
+    // Single function for load handling
+    const handleLoad = () => img.complete && requestAnimationFrame(() => {
+      img.classList.add('loaded');
+      updateTimestamp();
+    });
 
-    // Handle image error
-    const handleError = () => {
-      requestAnimationFrame(() => {
-        img.classList.add('error');
-        img.setAttribute('alt', 'Napaka pri nalaganju slike');
-        timestamp.textContent = 'Napaka pri nalaganju';
-        timestamp.classList.add('error');
-      });
-    };
+    // Single function for error handling
+    const handleError = () => requestAnimationFrame(() => {
+      img.classList.add('error');
+      img.setAttribute('alt', 'Napaka pri nalaganju slike');
+      timestamp.textContent = 'Napaka pri nalaganju';
+      timestamp.classList.add('error');
+    });
 
-    // Add event listeners
+    // Add event listeners and check initial state
     img.addEventListener('load', handleLoad);
     img.addEventListener('error', handleError);
-    
-    // Force load event if image is already loaded
-    if (img.complete) {
-      handleLoad();
-    }
+    handleLoad();
   });
 };
 

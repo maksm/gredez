@@ -110,29 +110,6 @@
         if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
             document.documentElement.setAttribute('data-pwa', 'true');
         }
-        
-        // Register service worker
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/gredez/sw.js')
-                    .then(registration => {
-                        // Check for updates
-                        registration.addEventListener('updatefound', () => {
-                            const newWorker = registration.installing;
-                            newWorker.addEventListener('statechange', () => {
-                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    // New content is available
-                                    if (confirm('Nova verzija aplikacije je na voljo. Posodobi zdaj?')) {
-                                        registration.waiting.postMessage('SKIP_WAITING');
-                                        window.location.reload();
-                                    }
-                                }
-                            });
-                        });
-                    })
-                    .catch(err => console.error('Service Worker registration failed:', err));
-            });
-        }
     </script>
 </body>
 </html>

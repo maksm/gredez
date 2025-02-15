@@ -117,6 +117,7 @@ export const pages = {
     images: [
       {
         id: 'gefs-img',
+        src: `https://modeles16.meteociel.fr/modeles/gensp/runs/${new Date().toISOString().slice(0, 10).replace(/-/g, "")}00/graphe3_10000___14.2452830189_45.7894736842_.gif`,
         alt: 'GEFS napoved'
       }
     ]

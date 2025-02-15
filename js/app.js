@@ -22,7 +22,6 @@ class ServiceWorkerManager {
     this.registration = null;
     this.initialized = false;
     this.offlineMode = !navigator.onLine;
-    this.ensembleState = new Map();
     this.deferredInstallPrompt = null;
     
     if ('serviceWorker' in navigator) {
@@ -177,40 +176,18 @@ class ServiceWorkerManager {
         return;
       }
 
-      if (currentPage === 'gefs' || currentPage === 'epsgram') {
-        await this.refreshEnsembleData(currentPage);
-      } else {
-        // Instead of reloading the page, just refresh the images
-        document.querySelectorAll('img').forEach(img => {
-          const timestamp = new Date().getTime();
-          const url = new URL(img.src);
-          url.searchParams.set('t', timestamp);
-          img.src = url.toString();
-        });
-      }
+      // Refresh all images on the page
+      document.querySelectorAll('img').forEach(img => {
+        const timestamp = new Date().getTime();
+        const url = new URL(img.src);
+        url.searchParams.set('t', timestamp);
+        img.src = url.toString();
+      });
     } catch (error) {
       console.error('Refresh failed:', error);
     }
   }
 
-  async refreshEnsembleData(page) {
-    try {
-      const cache = await caches.open('gredez-ensemble-v1');
-      await cache.keys().then(keys => 
-        Promise.all(keys.map(key => cache.match(key)))
-      );
-      // Instead of reloading, refresh specific ensemble images
-      const gefsImg = document.getElementById('gefs-img');
-      if (gefsImg) {
-        const timestamp = new Date().getTime();
-        const url = new URL(gefsImg.src);
-        url.searchParams.set('t', timestamp);
-        gefsImg.src = url.toString();
-      }
-    } catch (error) {
-      console.error('Ensemble refresh failed:', error);
-    }
-  }
 }
 
 // Touch Navigation Setup
@@ -565,21 +542,10 @@ const initializeImages = () => {
   });
 };
 
-// Set up GEFS image if it exists
-const initializeGEFSImage = () => {
-  const gefsImg = document.getElementById('gefs-img');
-  if (gefsImg) {
-    const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    gefsImg.src = `https://modeles16.meteociel.fr/modeles/gensp/runs/${today}00/graphe3_10000___14.2452830189_45.7894736842_.gif`;
-  }
-};
-
 // Initialize content
 const initializeContent = () => {
   // Initialize all images
   initializeImages();
-  // Set up GEFS image if needed
-  initializeGEFSImage();
 };
 
 // Initialize

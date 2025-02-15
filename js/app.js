@@ -1,12 +1,7 @@
-// Navigation pages
-const pages = [
-  'index.html',
-  'radar.html',
-  'aladin.html',
-  'epsgram.html',
-  'blitz.html',
-  'gefs.html'
-];
+import { pages } from './config/pages.js';
+
+// Navigation pages (derived from config)
+const pageNames = Object.keys(pages);
 
 // Import services and components
 import { networkService } from './services/network.js';
@@ -44,8 +39,8 @@ class ServiceWorkerManager {
 
   async initialize() {
     try {
-      this.registration = await navigator.serviceWorker.register('/gredez/sw.js', { 
-        scope: '/gredez/' 
+      this.registration = await navigator.serviceWorker.register('./sw.js', { 
+        scope: './' 
       });
       
       // Request persistent storage
@@ -175,14 +170,14 @@ class ServiceWorkerManager {
 
   async refreshData() {
     try {
-      const currentPage = window.location.pathname.split('/').pop();
+      const currentPage = window.location.pathname.split('/').pop().replace('.html', '');
       
       // Skip refresh for non-weather pages
-      if (!pages.includes(currentPage)) {
+      if (!pageNames.includes(currentPage)) {
         return;
       }
 
-      if (currentPage === 'gefs.html' || currentPage === 'epsgram.html') {
+      if (currentPage === 'gefs' || currentPage === 'epsgram') {
         await this.refreshEnsembleData(currentPage);
       } else {
         // Instead of reloading the page, just refresh the images
@@ -277,59 +272,100 @@ class TouchNavigation {
     
     if (Math.abs(swipeDistance) < this.minSwipeDistance) return;
 
-    const currentPage = window.location.pathname.split('/').pop();
-    const currentIndex = pages.indexOf(currentPage);
+    const currentPage = window.location.pathname.split('/').pop().replace('.html', '');
+    const currentIndex = pageNames.indexOf(currentPage);
     
     let nextIndex;
     if (swipeDistance > 0) {
       // Swipe right - go to previous
-      nextIndex = currentIndex > 0 ? currentIndex - 1 : pages.length - 1;
+      nextIndex = currentIndex > 0 ? currentIndex - 1 : pageNames.length - 1;
     } else {
       // Swipe left - go to next
-      nextIndex = currentIndex < pages.length - 1 ? currentIndex + 1 : 0;
+      nextIndex = currentIndex < pageNames.length - 1 ? currentIndex + 1 : 0;
     }
 
     // Use history.pushState for smoother navigation
-    const nextPage = pages[nextIndex];
-    history.pushState({ page: nextPage }, '', nextPage);
+    const nextPage = pageNames[nextIndex];
+    history.pushState({ page: nextPage }, '', `${nextPage}.html`);
     this.loadPageContent(nextPage);
   }
 
-  async loadPageContent(page) {
+  async loadPageContent(pageName) {
     try {
-      const response = await fetch(page);
-      const html = await response.text();
+      const pageConfig = pages[pageName];
       
-      // Parse the HTML content
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
+      if (!pageConfig) {
+        throw new Error(`Page configuration not found for ${pageName}`);
+      }
       
-      // Update main container content
-      const mainContainer = document.getElementById('main_container');
-      if (mainContainer) {
-        // Clear existing content and wrappers
-        mainContainer.innerHTML = '';
+      // Update title and source link
+      const pageTitle = document.getElementById('page-title');
+      const sourceLink = document.getElementById('source-link');
+      
+      if (pageTitle) pageTitle.textContent = pageConfig.title;
+      if (sourceLink) sourceLink.href = pageConfig.sourceUrl;
+      
+      // Update images
+      const imagesContainer = document.getElementById('images-container');
+      if (imagesContainer) {
+        imagesContainer.innerHTML = '';
         
-        // Get the new content
-        const newContent = doc.getElementById('main_container');
-        
-        // Copy attributes
-        Array.from(newContent.attributes).forEach(attr => {
-          mainContainer.setAttribute(attr.name, attr.value);
-        });
-        
-        // Insert new content
-        mainContainer.innerHTML = newContent.innerHTML;
-        
-        // Initialize content immediately after updating DOM
-        requestAnimationFrame(() => {
-          initializeContent();
+        pageConfig.images.forEach(imageConfig => {
+          const row = document.createElement('div');
+          row.className = 'row mt-3';
+          
+          const col = document.createElement('div');
+          col.className = 'col';
+          
+          const img = document.createElement('img');
+          img.style.width = '100%';
+          img.className = 'img-responsive';
+          img.alt = imageConfig.alt;
+          if (imageConfig.id) img.id = imageConfig.id;
+          if (imageConfig.src) img.src = imageConfig.src;
+          
+          col.appendChild(img);
+          row.appendChild(col);
+          imagesContainer.appendChild(row);
         });
       }
+      
+      // Update links if present
+      const linksContainer = document.getElementById('links-container');
+      if (linksContainer) {
+        if (pageConfig.links && pageConfig.links.length > 0) {
+          const col = document.createElement('div');
+          col.className = 'col';
+          
+          const btnGroup = document.createElement('div');
+          btnGroup.className = 'btn-group d-flex';
+          
+          pageConfig.links.forEach(link => {
+            const a = document.createElement('a');
+            a.href = link.url;
+            a.target = '_blank';
+            a.rel = 'noopener';
+            a.className = 'btn btn-outline-primary';
+            a.textContent = link.text;
+            btnGroup.appendChild(a);
+          });
+          
+          col.appendChild(btnGroup);
+          linksContainer.innerHTML = '';
+          linksContainer.appendChild(col);
+        } else {
+          linksContainer.innerHTML = '';
+        }
+      }
+      
+      // Initialize content after all changes
+      requestAnimationFrame(() => {
+        initializeContent();
+      });
     } catch (error) {
       console.error('Error loading page content:', error);
-      // Fallback to traditional navigation if fetch fails
-      window.location.href = page;
+      // Fallback to traditional navigation if loading fails
+      window.location.href = `${pageName}.html`;
     }
   }
 }
@@ -432,6 +468,13 @@ class ThemeManager {
   }
 }
 
+// Add timestamp to URL to bypass cache
+const addTimestamp = (url) => {
+  const urlObj = new URL(url);
+  urlObj.searchParams.set('t', Date.now());
+  return urlObj.toString();
+};
+
 // Initialize images with wrappers and timestamps
 const initializeImages = () => {
   const template = document.createElement('template');
@@ -452,6 +495,10 @@ const initializeImages = () => {
     img.parentNode.insertBefore(wrapper, img);
     wrapper.insertBefore(img, wrapper.firstElementChild);
     const timestamp = wrapper.querySelector('.image-timestamp');
+
+    // Track retry count
+    let retryCount = 0;
+    const maxRetries = 3;
     
     // Update timestamp once per image load
     const updateTimestamp = async () => {
@@ -470,26 +517,55 @@ const initializeImages = () => {
 
     // Single function for load handling
     const handleLoad = () => img.complete && requestAnimationFrame(() => {
+      img.classList.remove('error');
       img.classList.add('loaded');
+      timestamp.classList.remove('error');
       updateTimestamp();
+      // Reset retry count on successful load
+      retryCount = 0;
     });
 
-    // Single function for error handling
-    const handleError = () => requestAnimationFrame(() => {
-      img.classList.add('error');
-      img.setAttribute('alt', 'Napaka pri nalaganju slike');
-      timestamp.textContent = 'Napaka pri nalaganju';
-      timestamp.classList.add('error');
-    });
+    // Error handling with retries
+    const handleError = () => {
+      if (retryCount < maxRetries) {
+        retryCount++;
+        // Add timestamp and retry loading
+        const originalSrc = img.src.split('?')[0];
+        img.src = addTimestamp(originalSrc);
+        timestamp.textContent = `Poskus ${retryCount}/${maxRetries}...`;
+      } else {
+        requestAnimationFrame(() => {
+          img.classList.add('error');
+          img.setAttribute('alt', 'Napaka pri nalaganju slike');
+          timestamp.textContent = 'Napaka pri nalaganju';
+          timestamp.classList.add('error');
+          
+          // Add retry button
+          const retryButton = document.createElement('button');
+          retryButton.textContent = 'Poskusi znova';
+          retryButton.className = 'retry-button';
+          retryButton.onclick = () => {
+            retryCount = 0;
+            const originalSrc = img.src.split('?')[0];
+            img.src = addTimestamp(originalSrc);
+          };
+          timestamp.appendChild(retryButton);
+        });
+      }
+    };
 
     // Add event listeners and check initial state
     img.addEventListener('load', handleLoad);
     img.addEventListener('error', handleError);
-    handleLoad();
+    
+    // Initial load with timestamp
+    if (img.src) {
+      img.src = addTimestamp(img.src);
+    }
   });
 };
 
-// Set up GEFS image if on GEFS page
+// Set up GEFS image if it exists
 const initializeGEFSImage = () => {
   const gefsImg = document.getElementById('gefs-img');
   if (gefsImg) {
@@ -532,24 +608,37 @@ const initializeNetworkStatus = () => {
   document.body.insertBefore(networkStatus, document.body.firstChild);
 };
 
+// Initialize application
 document.addEventListener('DOMContentLoaded', async () => {
-  // Initialize network status component
-  initializeNetworkStatus();
-  themeManager = new ThemeManager();
-  
-  // Load header first
-  await loadHeader();
-  
-  // Initialize touch navigation
-  const mainContainer = document.getElementById('main_container');
-  if (mainContainer) {
-    const touchNav = new TouchNavigation(mainContainer);
-    // Store TouchNavigation instance for popstate handling
-    mainContainer._touchNav = touchNav;
+  try {
+    // Initialize network status component
+    initializeNetworkStatus();
+    themeManager = new ThemeManager();
+    
+    // Load header first
+    await loadHeader();
+    
+    // Initialize touch navigation
+    const mainContainer = document.getElementById('main_container');
+    if (mainContainer) {
+      const touchNav = new TouchNavigation(mainContainer);
+      // Store TouchNavigation instance for popstate handling
+      mainContainer._touchNav = touchNav;
+      
+      // Get current page from URL or default to index
+      let currentPage = window.location.pathname.split('/').pop().replace('.html', '');
+      // Handle root path
+      if (!currentPage || currentPage === '') {
+        currentPage = 'index';
+      }
+      // Load initial page content
+      await touchNav.loadPageContent(currentPage);
+    } else {
+      console.error('Main container not found');
+    }
+  } catch (error) {
+    console.error('Initialization error:', error);
   }
-
-  // Initialize content
-  initializeContent();
 });
 
 // Initialize Service Worker Manager

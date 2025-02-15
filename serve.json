@@ -1,0 +1,10 @@
+{
+  "rewrites": [
+    { "source": "radar", "destination": "/index.html" },
+    { "source": "aladin", "destination": "/index.html" },
+    { "source": "epsgram", "destination": "/index.html" },
+    { "source": "blitz", "destination": "/index.html" },
+    { "source": "gefs", "destination": "/index.html" }
+  ],
+  "cleanUrls": true
+}

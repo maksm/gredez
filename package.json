@@ -349,7 +349,8 @@
     "workbox-cli": "^7.3.0"
   },
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "start": "serve -l 3000"
   },
   "repository": {
     "type": "git",

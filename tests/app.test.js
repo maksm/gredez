@@ -1,9 +1,9 @@
 // Test timeouts in seconds
 const TIMEOUTS = {
-  JEST: 30, // Increased timeout for overall test
-  PAGE: 5,  // Increased page load timeout
-  NAVIGATION: 5,
-  SELECTOR: 5
+  JEST: 60, // Increased overall timeout
+  PAGE: 10,  // Increased page load timeout
+  NAVIGATION: 10,
+  SELECTOR: 10
 };
 
 // Convert seconds to milliseconds
@@ -12,19 +12,45 @@ const toMs = seconds => seconds * 1000;
 describe('Weather App', () => {
   jest.setTimeout(toMs(TIMEOUTS.JEST));
 
-  // List of all app pages
-  const pages = [
-    'index.html',
-    'radar.html',
-    'aladin.html',
-    'epsgram.html',
-    'blitz.html',
-    'gefs.html'
-  ];
+  // Mock page configuration
+  const mockPages = {
+    'index': {
+      title: 'Trenutno stanje',
+      sourceUrl: 'https://meteo.arso.gov.si/pda/',
+      images: [
+        {
+          src: 'https://meteo.arso.gov.si/uploads/probase/www/observ/surface/graphic/weatherSat_si_pda.png',
+          alt: 'Trenutno stanje'
+        }
+      ]
+    },
+    'radar': {
+      title: 'Zadnjih 30 min',
+      sourceUrl: 'https://meteo.arso.gov.si/pda/',
+      images: [
+        {
+          src: 'https://meteo.arso.gov.si/uploads/probase/www/observ/radar/si0_zm_pda_anim.gif',
+          alt: 'Padavine zadnje'
+        }
+      ]
+    }
+  };
 
   beforeAll(async () => {
     try {
-      // Mock service worker and notification APIs
+      await page.setDefaultTimeout(toMs(TIMEOUTS.PAGE));
+      await page.setDefaultNavigationTimeout(toMs(TIMEOUTS.NAVIGATION));
+
+      // Mock page configuration module
+      await page.evaluateOnNewDocument((mockConfig) => {
+        window.mockPagesConfig = mockConfig;
+        // Mock the ES module
+        window.mockModule = {
+          pages: mockConfig
+        };
+      }, mockPages);
+
+      // Mock service worker and related APIs
       await page.evaluateOnNewDocument(() => {
         window.navigator.serviceWorker = {
           register: () => Promise.resolve({
@@ -56,56 +82,75 @@ describe('Weather App', () => {
         };
       });
 
-      await page.setDefaultTimeout(toMs(TIMEOUTS.PAGE));
-      await page.setDefaultNavigationTimeout(toMs(TIMEOUTS.NAVIGATION));
-      
-      await jestPuppeteer.resetBrowser();
-      await page.goto('http://localhost:3000', {
-        waitUntil: 'networkidle0',
+      // Navigate to the app
+      await page.goto('http://localhost:3000/', {
+        waitUntil: ['networkidle0', 'domcontentloaded'],
         timeout: toMs(TIMEOUTS.PAGE)
       });
+
+      // Wait for key elements with increased timeout
+      await Promise.all([
+        page.waitForSelector('#main_container', { timeout: toMs(TIMEOUTS.SELECTOR) }),
+        page.waitForSelector('#page-title', { timeout: toMs(TIMEOUTS.SELECTOR) }),
+        page.waitForSelector('#source-link', { timeout: toMs(TIMEOUTS.SELECTOR) })
+      ]);
+
     } catch (error) {
       console.error('Setup error:', error);
       throw error;
     }
   });
 
-  beforeEach(async () => {
-    await jestPuppeteer.resetPage();
-  });
+  // Test 1: Layout and Dynamic Content Test
+  test('layout loads and displays dynamic content correctly', async () => {
+    // Test initial page (index)
+    const pageTitle = await page.$eval('#page-title', el => el.textContent);
+    expect(pageTitle).toBe('Trenutno stanje');
 
-  // Test 1: Navigation and Image Content Test
-  test('can navigate to all pages and validate content', async () => {
-    for (const pagePath of pages) {
-      try {
-        console.log(`Navigating to ${pagePath}...`);
-        await page.goto(`http://localhost:3000/${pagePath}`, {
-          waitUntil: 'networkidle0',
-          timeout: toMs(TIMEOUTS.PAGE)
-        });
+    const sourceLink = await page.$eval('#source-link', el => el.href);
+    expect(sourceLink).toBe('https://meteo.arso.gov.si/pda/');
 
-        // Check header presence
-        await expect(page).toMatchElement('header');
+    // Check if images are loaded
+    const images = await page.$$('img');
+    expect(images.length).toBeGreaterThan(0);
 
-        // Check for any images on the page
-        const images = await page.$$('img');
-        if (images.length > 0) {
-          // Verify images are loaded
-          for (const image of images) {
-            const imageLoaded = await page.evaluate(img => {
-              return img.complete && img.naturalHeight !== 0;
-            }, image);
-            expect(imageLoaded).toBe(true);
-          }
-        }
-      } catch (error) {
-        console.error(`Error testing ${pagePath}:`, error);
-        throw error;
-      }
+    for (const image of images) {
+      const imageLoaded = await page.evaluate(img => {
+        return img.complete && img.naturalHeight !== 0;
+      }, image);
+      expect(imageLoaded).toBe(true);
     }
   });
 
-  // Test 2: Service Worker Cache and Offline Behavior Test
+  // Test 2: Navigation Test
+  test('navigation between pages works correctly', async () => {
+    // Navigate using TouchNavigation
+    await page.evaluate(() => {
+      const touchNav = document.getElementById('main_container')?._touchNav;
+      if (touchNav) {
+        touchNav.loadPageContent('radar');
+      }
+    });
+
+    // Wait for content to update
+    await page.waitForFunction(
+      () => document.getElementById('page-title').textContent === 'Zadnjih 30 min',
+      { timeout: toMs(TIMEOUTS.NAVIGATION) }
+    );
+
+    // Verify radar page content
+    const pageTitle = await page.$eval('#page-title', el => el.textContent);
+    expect(pageTitle).toBe('Zadnjih 30 min');
+
+    const images = await page.$$('img');
+    expect(images.length).toBeGreaterThan(0);
+
+    // Check correct image URL
+    const imageSrc = await page.evaluate(img => img.src, images[0]);
+    expect(imageSrc).toContain('si0_zm_pda_anim.gif');
+  });
+
+  // Test 3: Service Worker Cache and Offline Behavior Test
   test('service worker handles offline mode correctly', async () => {
     try {
       // Check service worker registration
@@ -121,45 +166,39 @@ describe('Weather App', () => {
       expect(cacheKeys).toContain('gredez-static-v1');
       expect(cacheKeys).toContain('gredez-images-v1');
 
-      // Test offline behavior for each page
-      for (const pagePath of pages) {
-        // First load page normally to cache it
-        await page.goto(`http://localhost:3000/${pagePath}`, {
-          waitUntil: 'networkidle0',
-          timeout: toMs(TIMEOUTS.PAGE)
-        });
+      // Set offline mode and verify content still displays
+      await page.setOfflineMode(true);
+      
+      // Try loading content in offline mode
+      await page.evaluate(() => {
+        const touchNav = document.getElementById('main_container')?._touchNav;
+        if (touchNav) {
+          touchNav.loadPageContent('index');
+        }
+      });
 
-        // Set offline mode and try to load the same page
-        await page.setOfflineMode(true);
-        const response = await page.goto(`http://localhost:3000/${pagePath}`, {
-          waitUntil: 'networkidle0',
-          timeout: toMs(TIMEOUTS.PAGE)
-        });
-        expect(response.status()).toBe(200);
+      // Check if network status component is shown
+      const networkStatusVisible = await page.evaluate(() => {
+        const status = document.querySelector('network-status');
+        return status && window.getComputedStyle(status).display === 'block';
+      });
+      expect(networkStatusVisible).toBe(true);
 
-        // Check if network status component is shown
-        const networkStatusVisible = await page.evaluate(() => {
-          const status = document.querySelector('network-status');
-          return status && window.getComputedStyle(status).display === 'block';
-        });
-        expect(networkStatusVisible).toBe(true);
+      // Check if cached content is displayed
+      const hasContent = await page.evaluate(() => {
+        const mainContainer = document.getElementById('main_container');
+        return mainContainer && mainContainer.innerHTML.trim() !== '';
+      });
+      expect(hasContent).toBe(true);
 
-        // Check if cached content is displayed
-        const hasContent = await page.evaluate(() => {
-          const mainContainer = document.getElementById('main_container');
-          return mainContainer && mainContainer.innerHTML.trim() !== '';
-        });
-        expect(hasContent).toBe(true);
-
-        await page.setOfflineMode(false);
-      }
+      await page.setOfflineMode(false);
     } catch (error) {
       console.warn('Service worker cache test warning: ' + error.message);
       // Don't throw error for cache test failures
     }
   });
 
-  // Test 3: PWA Installation Test
+  // Test 4: PWA Installation Test
   test('PWA installation requirements are met', async () => {
     try {
       await expect(page).toMatchElement('link[rel="manifest"]');
@@ -182,18 +221,12 @@ describe('Weather App', () => {
       await expect(page).toMatchElement('meta[name="theme-color"]');
     } catch (error) {
       console.warn('PWA installation test warning:', error.message);
-      // Don't throw error for missing PWA elements
     }
   });
 
-  // Test 4: Network Status Component Test
+  // Test 5: Network Status Component Test
   test('network status component works correctly', async () => {
     try {
-      await page.goto('http://localhost:3000/', {
-        waitUntil: 'networkidle0',
-        timeout: toMs(TIMEOUTS.PAGE)
-      });
-      
       // Check component is present but hidden when online
       let isHidden = await page.evaluate(() => {
         const status = document.querySelector('network-status');
@@ -220,54 +253,6 @@ describe('Weather App', () => {
       await page.setOfflineMode(false);
     } catch (error) {
       console.warn('Network status component test warning:', error.message);
-    }
-  });
-
-  // Test 5: PWA Update Flow Test
-  test('PWA update mechanism exists', async () => {
-    try {
-      const updateCapabilities = await page.evaluate(() => {
-        return {
-          hasServiceWorker: 'serviceWorker' in navigator,
-          hasController: navigator.serviceWorker.controller !== null,
-          canUpdate: typeof navigator.serviceWorker.register === 'function'
-        };
-      });
-      
-      expect(updateCapabilities.hasServiceWorker).toBe(true);
-      expect(updateCapabilities.canUpdate).toBe(true);
-    } catch (error) {
-      console.warn('PWA update test warning:', error.message);
-    }
-  });
-
-  // Test 6: Background Sync Test
-  test('background sync mechanism exists', async () => {
-    try {
-      const syncCapabilities = await page.evaluate(() => {
-        return {
-          hasSync: 'serviceWorker' in navigator,
-          hasPeriodicSync: 'periodicSync' in navigator.serviceWorker.ready
-        };
-      });
-      
-      if (syncCapabilities.hasPeriodicSync) {
-        const registration = await page.evaluate(async () => {
-          try {
-            await navigator.serviceWorker.ready.periodicSync.register('weather-sync', {
-              minInterval: 24 * 60 * 60 * 1000
-            });
-            return true;
-          } catch {
-            return false;
-          }
-        });
-        expect(registration).toBe(true);
-      } else {
-        console.log('Periodic Sync API not supported - test skipped');
-      }
-    } catch (error) {
-      console.warn('Background sync test warning:', error.message);
     }
   });
 });

@@ -37,73 +37,26 @@
     <div class="container" id="main_container">
         <div class="row mt-3">
             <div class="col-11">
-                <h3>Trenutno stanje</h3>
+                <h3 id="page-title"></h3>
             </div>
             <div class="col-1 text-end">
-                <a href="https://meteo.arso.gov.si/pda/" 
-                   target="_blank" 
-                   rel="noopener">Vir</a>
+                <a id="source-link" href="" target="_blank" rel="noopener">Vir</a>
             </div>
         </div>
 
-        <div class="row mt-3">
-            <div class="col">
-                <img style="width: 100%;" 
-                     class="img-responsive" 
-                     src="https://meteo.arso.gov.si/uploads/probase/www/observ/surface/graphic/weatherSat_si_pda.png"
-                     alt="Trenutno stanje"
-                     loading="lazy">
-            </div>
-        </div>
-        
-        <div class="row mt-3">
-            <div class="col">
-                <img style="width: 100%;" 
-                     class="img-responsive" 
-                     src="https://meteo.arso.gov.si/uploads/probase/www/observ/radar/si0_zm_pda_latest.gif"
-                     alt="Padavine zadnje"
-                     loading="lazy">
-            </div>
-        </div>
-        
-        <div class="row mt-3">
-            <div class="col">
-                <img style="width: 100%;" 
-                     class="img-responsive" 
-                     src="https://meteo.arso.gov.si/uploads/probase/www/observ/satellite/nwcsaf_ct_pda_latest.gif"
-                     alt="Oblacnost zadnje"
-                     loading="lazy">
-            </div>
+        <div id="images-container">
+            <!-- Images will be dynamically inserted here -->
         </div>
 
-        <div class="row mt-3">
-            <div class="col">
-                <div class="btn-group d-flex">
-                    <a href="https://meteo.arso.gov.si/pda/fproduct/" 
-                       target="_blank" 
-                       rel="noopener"
-                       class="btn btn-outline-primary">Napoved tekst</a>
-                    <a href="https://meteo.arso.gov.si/uploads/probase/www/observ/surface/text/sl/observationAms_LJUBL-ANA_BEZIGRAD_history.html"
-                       target="_blank" 
-                       rel="noopener"
-                       class="btn btn-outline-primary">Podatki Ljubljana</a>
-                    <a href="https://meteo.arso.gov.si/met/sl/service/" 
-                       target="_blank" 
-                       rel="noopener"
-                       class="btn btn-outline-primary">Podatki vsi</a>
-                    <a href="https://www.arso.gov.si/vode/podatki/stanje_voda_samodejne.html"
-                       target="_blank" 
-                       rel="noopener"
-                       class="btn btn-outline-primary">Stanje vode</a>
-                </div>
-            </div>
+        <div id="links-container" class="row mt-3">
+            <!-- Links will be dynamically inserted here if present -->
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" 
             crossorigin="anonymous"
             defer></script>
-    <script src="js/app.js" type="module" defer></script>
+    <script src="js/app.js" type="module"></script>
 
     <script>
         // Check if the app is in standalone mode (installed PWA)

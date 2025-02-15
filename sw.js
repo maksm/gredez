@@ -164,25 +164,26 @@ workbox.routing.registerRoute(
 
 // Cache static assets with versioning
 workbox.precaching.precacheAndRoute([
-  { url: '/gredez/', revision: VERSION },
-  { url: '/gredez/index.html', revision: VERSION },
-  { url: '/gredez/radar.html', revision: VERSION },
-  { url: '/gredez/aladin.html', revision: VERSION },
-  { url: '/gredez/epsgram.html', revision: VERSION },
-  { url: '/gredez/blitz.html', revision: VERSION },
-  { url: '/gredez/gefs.html', revision: VERSION },
-  { url: '/gredez/offline.html', revision: VERSION },
-  { url: '/gredez/css/styles.css', revision: VERSION },
-  { url: '/gredez/js/app.js', revision: VERSION },
-  { url: '/gredez/manifest.webmanifest', revision: VERSION },
-  { url: '/gredez/images/icons/icon-72.png', revision: VERSION },
-  { url: '/gredez/images/icons/icon-96.png', revision: VERSION },
-  { url: '/gredez/images/icons/icon-128.png', revision: VERSIOxN },
-  { url: '/gredez/images/icons/icon-144.png', revision: VERSION },
-  { url: '/gredez/images/icons/icon-152.png', revision: VERSION },
-  { url: '/gredez/images/icons/icon-192.png', revision: VERSION },
-  { url: '/gredez/images/icons/icon-384.png', revision: VERSION },
-  { url: '/gredez/images/icons/icon-512.png', revision: VERSION }
+  { url: './', revision: VERSION },
+  { url: './index.html', revision: VERSION },
+  { url: './radar', revision: VERSION },
+  { url: './aladin', revision: VERSION },
+  { url: './epsgram', revision: VERSION },
+  { url: './blitz', revision: VERSION },
+  { url: './gefs', revision: VERSION },
+  { url: './offline', revision: VERSION },
+  { url: './css/styles.css', revision: VERSION },
+  { url: './js/app.js', revision: VERSION },
+  { url: './js/config/pages.js', revision: VERSION },
+  { url: './manifest.webmanifest', revision: VERSION },
+  { url: './images/icons/icon-72.png', revision: VERSION },
+  { url: './images/icons/icon-96.png', revision: VERSION },
+  { url: './images/icons/icon-128.png', revision: VERSION },
+  { url: './images/icons/icon-144.png', revision: VERSION },
+  { url: './images/icons/icon-152.png', revision: VERSION },
+  { url: './images/icons/icon-192.png', revision: VERSION },
+  { url: './images/icons/icon-384.png', revision: VERSION },
+  { url: './images/icons/icon-512.png', revision: VERSION }
 ]);
 
 // Cache static assets with network first strategy
@@ -214,8 +215,14 @@ workbox.routing.registerRoute(
       }),
       {
         handlerDidError: async ({ request }) => {
-          // Return the cached version of the page instead of offline.html
-          return await caches.match(request.url);
+          // For clean URLs, try to match the base page
+          const url = new URL(request.url);
+          const basePath = url.pathname.split('/').pop();
+          // Try to match the clean URL first, then fall back to index.html
+          const cache = await caches.open('pages-cache');
+          const match = await cache.match(new URL('./' + basePath, url.origin)) ||
+                       await cache.match(new URL('./index.html', url.origin));
+          return match || Response.error();
         },
       },
     ],

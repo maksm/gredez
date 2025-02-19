@@ -4,7 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Offline -  gredez</title>
-    <link rel="stylesheet" href="/css/styles.css">
+    <script>
+        // Get base path from repository name
+        const getBasePath = () => {
+            const repositoryName = location.pathname.split('/')[1];
+            return repositoryName ? '/' + repositoryName : '';
+        };
+        window.__basePath = getBasePath();
+    </script>
+    <link rel="stylesheet" href="css/styles.css">
     <style>
         .offline-message {
             text-align: center;
@@ -49,7 +57,7 @@
         <div class="offline-message">
             <h1>You're Offline</h1>
             <p>Sorry, you don't have an internet connection right now. Some images may still be available from the cache.</p>
-            <a href="/" class="retry-button">Try Again</a>
+            <a href="javascript:void(0)" onclick="window.location.href = window.__basePath + '/'" class="retry-button">Try Again</a>
         </div>
     </main>
     

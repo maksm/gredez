@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Redirecting...</title>
+    <script>
+        // Get the current path and query string
+        const path = window.location.pathname.slice(1);
+        const query = window.location.search;
+        
+        // Store the full URL in session storage and redirect to index.html
+        const repositoryName = location.pathname.split('/')[1];
+        const basePath = repositoryName ? '/' + repositoryName : '';
+        sessionStorage.setItem('redirectPath', path);
+        window.location.replace(basePath + '/index.html' + query);
+    </script>
+</head>
+<body>
+    Redirecting...
+</body>
+</html>

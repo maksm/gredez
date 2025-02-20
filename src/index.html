@@ -8,8 +8,7 @@
     <script>
         // Get base path from repository name
         const getBasePath = () => {
-            const repositoryName = location.pathname.split('/')[1];
-            return repositoryName ? '/' + repositoryName : '';
+            return '/gredez';
         };
         // Add base path to all asset URLs
         window.__basePath = getBasePath();

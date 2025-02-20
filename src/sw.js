@@ -34,18 +34,24 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  const basePath = '/gredez';
+  const requestUrl = new URL(event.request.url);
+  if (!requestUrl.pathname.startsWith(basePath)) {
+    requestUrl.pathname = basePath + requestUrl.pathname;
+  }
+
   // Handle image requests differently
-  if (event.request.url.match(/\.(png|gif|jpg|jpeg|webp|svg)$/)) {
+  if (requestUrl.pathname.match(/\.(png|gif|jpg|jpeg|webp|svg)$/)) {
     event.respondWith(
       (async () => {
         // Try cache first
-        const cachedResponse = await caches.match(event.request);
+        const cachedResponse = await caches.match(requestUrl);
         
         // Try IndexedDB if not in cache
         if (!cachedResponse) {
           try {
             const storage = await import('./services/StorageService.js');
-            const blob = await storage.default.getImage(event.request.url);
+            const blob = await storage.default.getImage(requestUrl.href);
             if (blob) {
               return new Response(blob, {
                 headers: {
@@ -63,18 +69,18 @@ self.addEventListener('fetch', (event) => {
 
         // If not found in cache or IndexedDB, fetch from network
         try {
-          const networkResponse = await fetch(event.request);
+          const networkResponse = await fetch(requestUrl);
           const responseClone = networkResponse.clone();
 
           // Store in both caches
           caches.open(CACHE_NAME).then(cache => {
-            cache.put(event.request, responseClone.clone());
+            cache.put(requestUrl, responseClone.clone());
           });
 
           // Store in IndexedDB
           responseClone.blob().then(blob => {
             import('./services/StorageService.js').then(storage => {
-              storage.default.saveImage(event.request.url, blob).catch(console.warn);
+              storage.default.saveImage(requestUrl.href, blob).catch(console.warn);
             });
           });
 
@@ -88,12 +94,12 @@ self.addEventListener('fetch', (event) => {
   } else {
     // For non-image requests, use standard cache-first strategy
     event.respondWith(
-      caches.match(event.request)
+      caches.match(requestUrl)
         .then((response) => {
           if (response) {
             return response;
           }
-          return fetch(event.request)
+          return fetch(requestUrl)
             .then((response) => {
               // Don't cache non-GET requests
               if (event.request.method !== 'GET') {
@@ -102,7 +108,7 @@ self.addEventListener('fetch', (event) => {
 
               const responseClone = response.clone();
               caches.open(CACHE_NAME)
-                .then((cache) => cache.put(event.request, responseClone));
+                .then((cache) => cache.put(requestUrl, responseClone));
               return response;
             })
             .catch(() => {

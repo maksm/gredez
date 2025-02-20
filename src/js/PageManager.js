@@ -48,17 +48,20 @@ export default class PageManager {
 
   // Internal method to normalize route paths
   normalizeRoute(route) {
-    // Remove the repository name if present
-    const basePath = window.__basePath || '';
-    route = route.replace(basePath, '');
-    
     // Ensure route starts with '/' and remove any trailing '/'
-    return '/' + route.replace(/^\/+|\/+$/g, '');
+    route = '/' + route.replace(/^\/+|\/+$/g, '');
+    
+    // Add the base path if not already included
+    const basePath = '/gredez';
+    if (!route.startsWith(basePath)) {
+      route = basePath + route;
+    }
+    
+    return route;
   }
 
   // Get full path including repository name
   getFullPath(route) {
-    const basePath = window.__basePath || '';
-    return basePath + this.normalizeRoute(route);
+    return this.normalizeRoute(route);
   }
 }

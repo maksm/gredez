@@ -9,8 +9,7 @@
         const query = window.location.search;
         
         // Store the full URL in session storage and redirect to index.html
-        const repositoryName = location.pathname.split('/')[1];
-        const basePath = repositoryName ? '/' + repositoryName : '';
+        const basePath = '/gredez';
         sessionStorage.setItem('redirectPath', path);
         window.location.replace(basePath + '/index.html' + query);
     </script>

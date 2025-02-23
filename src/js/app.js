@@ -170,7 +170,7 @@ class App {
         // Process swipe if movement exceeds threshold
         if (Math.abs(deltaX) >= this.SWIPE_THRESHOLD) {
           const routes = this.pageManager.getAllRoutes();
-          const currentRoute = window.location.pathname;
+          const currentRoute = this.pageManager.normalizeRoute(window.location.pathname);
           const currentIndex = routes.indexOf(currentRoute);
           
           // Calculate next route based on swipe direction
@@ -395,7 +395,7 @@ class App {
       link.href = this.pageManager.getFullPath(route);
       link.textContent = page.title;
       
-      if (window.location.pathname === route) {
+      if (this.pageManager.normalizeRoute(window.location.pathname) === route) {
         link.classList.add('active');
       }
       
@@ -421,7 +421,7 @@ class App {
   }
 
   createLinksContainer() {
-    const route = window.location.pathname;
+    const route = this.pageManager.normalizeRoute(window.location.pathname);
     const page = this.pageManager.getPageByRoute(route) || this.pageManager.getPageByRoute('/');
     
     // Return null if page has no links
@@ -443,12 +443,12 @@ class App {
   }
 
   async render() {
-    const route = window.location.pathname;
+    const route = this.pageManager.normalizeRoute(window.location.pathname);
     const page = this.pageManager.getPageByRoute(route) || this.pageManager.getPageByRoute('/');
     const images = this.pageManager.getPageImages(page.route);
 
     // Track current route
-    this._lastRoute = window.location.pathname;
+    this._lastRoute = this.pageManager.normalizeRoute(window.location.pathname);
 
     // Update header
     let header = document.querySelector('header');

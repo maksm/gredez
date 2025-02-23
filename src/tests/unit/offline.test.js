@@ -88,6 +88,6 @@ describe('App Offline Mode', () => {
     expect(indicator.classList.contains('warning')).toBe(true);
     
     // Verify exactly 4 registration attempts were made
-expect(registerMock).toHaveBeenCalledTimes(8  );
+expect(registerMock).toHaveBeenCalledTimes(8);
   }, 20000);
 });

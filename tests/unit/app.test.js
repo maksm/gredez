@@ -41,6 +41,7 @@ describe('Connection Status Indicator', () => {
     const indicator = document.querySelector('.connection-status');
     expect(indicator.textContent).toBe('Offline');
     expect(indicator.classList.contains('offline')).toBe(true);
+    expect(app.connectionService.getStatus().isOffline).toBe(true);
   });
 
   test('should update indicator when going online', () => {
@@ -55,6 +56,7 @@ describe('Connection Status Indicator', () => {
     const indicator = document.querySelector('.connection-status');
     expect(indicator.textContent).toBe('Online');
     expect(indicator.classList.contains('offline')).toBe(false);
+    expect(app.connectionService.getStatus().isOffline).toBe(false);
   });
 
   test('should maintain correct position in header', () => {
@@ -110,9 +112,9 @@ describe('Last Refresh Timestamp', () => {
     `;
     
     // Mock Image preload to avoid actual loading
-    jest.spyOn(app, 'preloadImage').mockResolvedValue(true);
+    jest.spyOn(app.imageService, 'preloadImage').mockResolvedValue(true);
     
-    await app.refreshImages();
+    await app.imageService.refreshImages();
     
     const timestamp = document.querySelector('footer .last-refresh');
     expect(timestamp).toBeTruthy();
@@ -186,14 +188,14 @@ describe('App Image Refresh', () => {
 
   test('should refresh images with cache-busting parameter', async () => {
     // Mock preloadImage to simulate successful image load
-    jest.spyOn(app, 'preloadImage').mockResolvedValue(true);
+    jest.spyOn(app.imageService, 'preloadImage').mockResolvedValue(true);
     
     // Get initial image
     const img = document.querySelector('.image-container img');
     const originalSrc = img.src;
     
     // Trigger refresh
-    await app.refreshImages();
+    await app.imageService.refreshImages();
     
     // Verify changes
     expect(img.src).not.toBe(originalSrc);
@@ -204,14 +206,14 @@ describe('App Image Refresh', () => {
 
   test('should handle failed image refresh gracefully', async () => {
     // Mock preloadImage to simulate failed image load
-    jest.spyOn(app, 'preloadImage').mockRejectedValue(new Error('Failed to load'));
+    jest.spyOn(app.imageService, 'preloadImage').mockRejectedValue(new Error('Failed to load'));
     
     // Get initial image
     const img = document.querySelector('.image-container img');
     const originalSrc = img.src;
     
     // Trigger refresh
-    await app.refreshImages();
+    await app.imageService.refreshImages();
     
     // Verify image retains original source on error
     expect(img.src).toBe(originalSrc);
@@ -220,11 +222,11 @@ describe('App Image Refresh', () => {
   });
 
   test('should perform initial refresh when app loads', async () => {
-    // Mock preloadImage to track if it's called
-    const preloadSpy = jest.spyOn(App.prototype, 'preloadImage').mockResolvedValue(true);
-    
     // Create a new app instance
     const app = new App();
+    
+    // Mock preloadImage to track if it's called
+    const preloadSpy = jest.spyOn(app.imageService, 'preloadImage').mockResolvedValue(true);
     
     // Run the setup that would normally happen in DOMContentLoaded
     await app.setupAutoRefresh();
@@ -243,13 +245,13 @@ describe('App Image Refresh', () => {
       configurable: true,
       value: false
     });
-    app.isOffline = true;
+    app.connectionService.isOffline = true;
     
     // Mock preloadImage to track if it's called
-    const preloadSpy = jest.spyOn(app, 'preloadImage');
+    const preloadSpy = jest.spyOn(app.imageService, 'preloadImage');
     
     // Trigger refresh
-    await app.refreshImages();
+    await app.imageService.refreshImages();
     
     // Verify preloadImage was not called in offline mode
     expect(preloadSpy).not.toHaveBeenCalled();

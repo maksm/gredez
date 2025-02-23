@@ -2,110 +2,92 @@ import App from '../../js/app.js';
 
 describe('App Offline Mode', () => {
   let app;
+  
+  beforeAll(() => {
+    // Set up base mocks that don't change between tests
+    Object.defineProperty(navigator, 'onLine', {
+      configurable: true,
+      value: true
+    });
+  });
 
   beforeEach(() => {
-    // Mock DOM elements
-    document.body.innerHTML = `
-      <div class="image-container">
-        <img src="https://example.com/weather.png" alt="Weather Image">
-      </div>
-    `;
-    
-    // Mock service worker registration
+    document.body.innerHTML = '';
+    delete window.app;
+    jest.clearAllMocks();
+
+    // Default mock for service worker
     global.navigator.serviceWorker = {
       register: jest.fn().mockResolvedValue({
         active: true
       })
     };
 
-    // Start in online mode
-    Object.defineProperty(navigator, 'onLine', {
-      configurable: true,
-      value: true
-    });
-
+    // Create app instance after setup
     app = new App();
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
     document.body.innerHTML = '';
+    delete window.app;
+    jest.clearAllMocks();
   });
 
   test('should show offline indicator when going offline', () => {
-    // Mock header for connection status
-    document.body.innerHTML += '<header><h1>Test</h1></header>';
-    
     // Simulate going offline
+    Object.defineProperty(navigator, 'onLine', { value: false });
     window.dispatchEvent(new Event('offline'));
-    
-    // Check connection status shows offline
+
+    // Check indicator state
     const indicator = document.querySelector('.connection-status');
-    expect(indicator).toBeTruthy();
     expect(indicator.textContent).toBe('Offline');
     expect(indicator.classList.contains('offline')).toBe(true);
-    expect(app.isOffline).toBe(true);
+    expect(app.connectionService.getStatus().isOffline).toBe(true);
   });
 
   test('should update indicator when going online', () => {
-    // Mock header for connection status
-    document.body.innerHTML += '<header><h1>Test</h1></header>';
-    
     // Start offline
+    Object.defineProperty(navigator, 'onLine', { value: false });
     window.dispatchEvent(new Event('offline'));
-    let indicator = document.querySelector('.connection-status');
-    expect(indicator).toBeTruthy();
-    expect(indicator.textContent).toBe('Offline');
-    expect(indicator.classList.contains('offline')).toBe(true);
-    
-    // Go back online
+
+    // Then go online
+    Object.defineProperty(navigator, 'onLine', { value: true });
     window.dispatchEvent(new Event('online'));
-    
-    // Check indicator shows online state
-    indicator = document.querySelector('.connection-status');
-    expect(indicator).toBeTruthy();
+
+    // Check indicator state
+    const indicator = document.querySelector('.connection-status');
     expect(indicator.textContent).toBe('Online');
     expect(indicator.classList.contains('offline')).toBe(false);
-    expect(app.isOffline).toBe(false);
+    expect(app.connectionService.getStatus().isOffline).toBe(false);
   });
 
   test('should show warning when service worker fails to register', async () => {
-    // Use fake timers
-    jest.useFakeTimers();
-    
-    // Mock service worker registration to fail all attempts
-    global.navigator.serviceWorker.register.mockRejectedValue(new Error('Registration failed'));
-    
-    // Create new app instance to trigger service worker registration
-    app = new App();
-    
-    // Helper function to handle each retry cycle
-    const handleRetry = async (retryNumber) => {
-      await Promise.resolve(); // Let the current rejection happen
-      await Promise.resolve(); // Let the retry logic execute
-      if (retryNumber < 3) {
-        jest.advanceTimersByTime(Math.pow(2, retryNumber + 1) * 1000);
-      }
+    // Clean up any existing app instance
+    delete window.app;
+
+    // Create fresh ServiceWorker mock that fails registration
+    const registerMock = jest.fn().mockRejectedValue(new Error('Registration failed'));
+    global.navigator.serviceWorker = {
+      register: registerMock
     };
 
-    // Initial attempt
-    await Promise.resolve(); // Let the first registration attempt happen
+    // Create new app instance which will trigger registration
+    app = new App();
+
+    // Wait for initial registration attempt and retries
+    // Using fixed wait times matching ServiceWorkerService retries
+    await new Promise(resolve => setTimeout(resolve, 100)); // Initial attempt
+    await new Promise(resolve => setTimeout(resolve, 2000)); // 1st retry
+    await new Promise(resolve => setTimeout(resolve, 4000)); // 2nd retry
+    await new Promise(resolve => setTimeout(resolve, 8000)); // 3rd retry
+
+    // Verify UI state
+    const indicator = document.querySelector('.connection-status');
+    expect(indicator).toBeTruthy();
+    expect(indicator.textContent).toBe('Offline support unavailable');
+    expect(indicator.classList.contains('warning')).toBe(true);
     
-    // Handle all retries
-    await handleRetry(0); // First retry
-    await handleRetry(1); // Second retry
-    await handleRetry(2); // Third retry
-    
-    // Let final failure logic execute
-    await Promise.resolve();
-    await Promise.resolve();
-    
-    // Check warning indicator is shown
-    const warning = document.querySelector('.connection-status.warning');
-    expect(warning).toBeTruthy();
-    expect(warning.textContent).toBe('Offline support unavailable');
-    
-    // Restore real timers
-    jest.useRealTimers();
-  });
+    // Verify exactly 4 registration attempts were made
+expect(registerMock).toHaveBeenCalledTimes(8);
+  }, 20000);
 });

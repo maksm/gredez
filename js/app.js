@@ -183,7 +183,7 @@ class App {
           
           // Navigate to next route
           const nextRoute = routes[nextIndex];
-          window.history.pushState({}, '', nextRoute);
+          window.history.pushState({}, '', this.pageManager.getFullPath(nextRoute));
           this.render();
         }
       }
@@ -212,7 +212,7 @@ class App {
     let retries = 0;
     const registerSW = async () => {
       try {
-        const registration = await navigator.serviceWorker.register('/sw.js');
+        const registration = await navigator.serviceWorker.register(this.pageManager.getFullPath('/sw.js'));
         if (!registration) {
           throw new Error('ServiceWorker registration returned undefined');
         }
@@ -392,7 +392,7 @@ class App {
     routes.forEach(route => {
       const link = document.createElement('a');
       const page = this.pageManager.getPageByRoute(route);
-      link.href = route;
+      link.href = this.pageManager.getFullPath(route);
       link.textContent = page.title;
       
       if (window.location.pathname === route) {
@@ -401,7 +401,7 @@ class App {
       
       link.addEventListener('click', (e) => {
         e.preventDefault();
-        window.history.pushState({}, '', route);
+        window.history.pushState({}, '', this.pageManager.getFullPath(route));
         // Close mobile menu when a link is clicked
         const hamburger = document.querySelector('.hamburger');
         const nav = document.querySelector('nav');

@@ -307,7 +307,7 @@ class App {
         }
       } catch (error) {
         console.error(`Failed to refresh image ${url}:`, error);
-        // Keep the existing image, don't update src
+        // Keep the existing image - don't update src when refresh fails
       }
     });
 
@@ -331,7 +331,7 @@ class App {
       urlObj.searchParams.delete('t');
       return urlObj.toString();
     } catch (error) {
-      console.error('Invalid URL:', url);
+      console.error('Invalid URL:', error);
       return url;
     }
   }
